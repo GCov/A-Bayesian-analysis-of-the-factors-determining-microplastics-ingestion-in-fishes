@@ -354,7 +354,7 @@ ggplot(gut.conc, aes(x=TL , y=log(W), colour = feeding.habit)) +
 dev.off()
 
 
-####################################
+#####################################
 summary(trophicfish2$IR)
 
 ingestion <- subset(trophicfish2, IR != "NA")
