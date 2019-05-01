@@ -1,3 +1,6 @@
+trophicfish <- 
+  read.csv("~/GRAD school/Trophic Fish Paper/Data/trophicfishupdate.csv")
+
 summary(trophicfish)
 
 plot(Mpsgut ~ TL, data = trophicfish)
@@ -58,46 +61,53 @@ library(plyr)
 
 ## Consolidate averages by study
 
-trophicfish$FLprod <- trophicfish$FL*trophicfish$N
-trophicfish$TL.1prod <- trophicfish$TL.1*trophicfish$N
+trophicfish$fork.lengthprod <- trophicfish$fork.length*trophicfish$N
+trophicfish$total.lengthprod <- trophicfish$total.length*trophicfish$N
 trophicfish$Wprod <- trophicfish$W*trophicfish$N
 trophicfish$GWprod <- trophicfish$GW*trophicfish$N
 trophicfish$IRprod <- trophicfish$IR*trophicfish$N
 trophicfish$Mpsgutprod <- trophicfish$Mpsgut*trophicfish$N
 trophicfish$ SDMPsgutprod <- trophicfish$ SDMPsgut*trophicfish$N
 
-trophicfish2 <- ddply(trophicfish, c('author', 'year', 'region', 'species', 'family', 'genus', 'environment',
-                                     'climate', 'feeding.type', 'feeding.habit', 'TL', 'min.size', 'float.meth',
-                                     'dig.meth', 'count.meth', 'polymer.meth', 'maj.fib', 'maj.under.one.mm'), 
+trophicfish2 <- ddply(trophicfish, 
+                      c('author', 'year', 'region', 'species', 'family', 
+                        'genus', 'environment', 'climate', 'red.list', 
+                        'feeding.type', 'feeding.habit', 'TL', 'min.size', 
+                        'float.meth', 'dig.meth', 'count.meth', 'polymer.meth', 
+                        'maj.fib', 'maj.under.one.mm', 'maj.polymer', 
+                        'maj.col', 'exclude.fib'), 
                       summarise, 
-                      FLprod=sum(FLprod), TL.1prod=sum(TL.1prod), Wprod=sum(Wprod), GWprod=sum(GWprod),
-                      N=sum(N), IRprod=sum(IRprod), Mpsgutprod=sum(Mpsgutprod), 
-                      SDMPsgutprod=sum(SDMPsgutprod)
+                      fork.lengthprod = sum(fork.lengthprod), 
+                      total.lengthprod = sum(total.lengthprod), 
+                      Wprod = sum(Wprod), 
+                      GWprod = sum(GWprod),
+                      N = sum(N), 
+                      IRprod = sum(IRprod), 
+                      Mpsgutprod = sum(Mpsgutprod), 
+                      SDMPsgutprod = sum(SDMPsgutprod)
                       )
 
-trophicfish2$FL <- trophicfish2$FLprod/trophicfish2$N
-trophicfish2$TL.1 <- trophicfish2$TL.1prod/trophicfish2$N
+trophicfish2$fork.length <- trophicfish2$fork.lengthprod/trophicfish2$N
+trophicfish2$total.length <- trophicfish2$total.lengthprod/trophicfish2$N
 trophicfish2$W <- trophicfish2$Wprod/trophicfish2$N
 trophicfish2$GW <- trophicfish2$GWprod/trophicfish2$N
 trophicfish2$IR <- trophicfish2$IRprod/trophicfish2$N
 trophicfish2$Mpsgut <- trophicfish2$Mpsgutprod/trophicfish2$N
-trophicfish2$ SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
+trophicfish2$SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
 
 summary(trophicfish2)
-length(trophicfish2$species) # 370 dta points
-length(trophicfish$species) # consolidated from 415 data point
-length(unique(trophicfish2$species)) # 308 species
-length(unique(trophicfish2$family)) # from 114 families
-length(unique(trophicfish2$author)) # from 40 studies
-
-
+length(trophicfish2$species) # 482 dta points
+length(trophicfish$species) # consolidated from 613 data point
+length(unique(trophicfish2$species)) # 383 species
+length(unique(trophicfish2$family)) # from 131 families
+length(unique(trophicfish2$author)) # from 57 studies
 
 summary(trophicfish2$min.size)
 
 library(plyr)
 
-trophicfish2$min.size <- mapvalues(trophicfish2$min.size, from = c("", "None"), 
-                                   to = c(0, 0))
+trophicfish2$min.size <- mapvalues(trophicfish2$min.size, from = c(""), 
+                                   to = c(NA))
 
 summary(trophicfish2$min.size)
 
@@ -118,10 +128,10 @@ library(MuMIn)
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
-length(gutdata$species) # 269 data points
-length(unique(gutdata$species)) # 235 species
-length(unique(gutdata$family)) # from 105 families
-length(unique(gutdata$author)) # from 32 studies
+length(gutdata$species) # 366 data points
+length(unique(gutdata$species)) # 382 species
+length(unique(gutdata$family)) # from 120 families
+length(unique(gutdata$author)) # from 46 studies
 tapply(gutdata$year, gutdata$author, unique)
 
 
@@ -161,11 +171,11 @@ summary(gutdata$gutconc)
 gut.conc <- subset(gutdata, gutconc != 'NA' & gutconc != 'Inf')
 summary(gut.conc)
 
-length(gut.conc$species) # 131 data points
-length(unique(gut.conc$species)) # 123 species
-length(unique(gut.conc$family)) # from 60 families
-length(unique(gut.conc$author)) # 16 studies
-length(unique(gut.conc$region)) ## 9 regions
+length(gut.conc$species) # 191 data points
+length(unique(gut.conc$species)) # 169 species
+length(unique(gut.conc$family)) # from 70 families
+length(unique(gut.conc$author)) # 23 studies
+length(unique(gut.conc$region)) ## 13 regions
 tapply(gut.conc$year, gut.conc$author, unique)
 
 summary(gut.conc)
@@ -174,87 +184,310 @@ summary(gut.conc)
 library(nlme)
 
 
-gutdata$feeding.habit <- mapvalues(gutdata$feeding.habit, from = levels(gutdata$feeding.habit),
-                                   to = c("Not listed", "Browsing on substrate", "Filtering plankton",
-                                          "Grazing on aquatic plants", "Hunting macrofauna",
-                                          "Selective plankton feeding", "Variable"))
+gutdata$feeding.habit <- mapvalues(gutdata$feeding.habit, 
+                                   from = levels(gutdata$feeding.habit),
+                                   to = c("Not listed", 
+                                          "Browsing on substrate", 
+                                          "Filtering plankton",
+                                          "Grazing on aquatic plants", 
+                                          "Hunting macrofauna",
+                                          "Selective plankton feeding", 
+                                          "Variable"))
 
 levels(gutdata$feeding.habit)
 
-gutdata$feeding.habit <- factor(gutdata$feeding.habit, levels = c("Not listed", "Browsing on substrate", 
-                                                                  "Grazing on aquatic plants",
-                                                                  "Filtering plankton", 
-                                                                  "Selective plankton feeding", 
-                                                                  "Hunting macrofauna",
-                                                                  "Variable"))
+gutdata$feeding.habit <- factor(
+  gutdata$feeding.habit,
+  levels = c(
+    "Not listed",
+    "Browsing on substrate",
+    "Grazing on aquatic plants",
+    "Filtering plankton",
+    "Selective plankton feeding",
+    "Hunting macrofauna",
+    "Variable"
+  )
+)
 levels(gutdata$feeding.habit)
 
 
 
 hist(gutdata$Mpsgut)
 
-plot(Mpsgut ~ N, data = gutdata) # variance definitely decreases with increasing N
+plot(log(Mpsgut + 1) ~ N, data = gutdata)  # variance decreases with N
 
-M1 <- lme(log(Mpsgut+1) ~ TL + feeding.habit, random = ~1 + 1|author/year, weights = varExp(form =~ N), 
-          data = gutdata, method = "ML")
+gutdata$negN <- 0 - gutdata$N
+
+plot(log(Mpsgut + 1) ~ negN, data = gutdata)  # seems to solve the issue
+
+plot(log(Mpsgut + 1) ~ TL, data = gutdata) # variance doesn't look too bad
+
+library(nlme)
+library(MuMIn)
+
+## First make trophic level/allometric models
+
+M1 <- lme(log(Mpsgut+1) ~ TL, random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = gutdata, method = "REML")
 summary(M1)
-plot(M1)
-AICc(M1)
-gutdata$feeding.habit <- relevel(gutdata$feeding.habit, "Hunting macrofauna")
+plot(resid(M1) ~ fitted(M1))
+abline(0,0)
 
-plot(resid(M1) ~ gutdata$feeding.habit)
-plot(resid(M1) ~ log(gutdata$TL))
+## Compare fit without weights
 
-M1.1 <- lme(log(Mpsgut+1) ~ TL, random = ~1 + 1|author/year, weights = varExp(form =~ N), 
+M2 <- lme(log(Mpsgut+1) ~ TL, random = ~1|author/year, 
+          data = gutdata, method = "REML")
+
+AICc(M1, M2)  # better fit with weights
+
+plot(resid(M2) ~ fitted(M2))
+
+plot(resid(M1) ~ gutdata$TL)
+plot(resid(M1) ~ gutdata$N)
+
+plot(Mpsgut ~ TL, data = gutdata)
+lines(exp(predict(M1, type = 'response')) - 1, col = 'red')
+
+summary(M1)  # no correlation between trophic level and MPS, p = 0.275
+
+# switch to ML
+
+M3 <- lme(log(Mpsgut+1) ~ TL, random = ~1|author/year, 
+          weights = varPower(form =~ N), 
           data = gutdata, method = "ML")
-AICc(M1, M1.1)
-anova(M1, M1.1) # feeding habit is not significant, p<0.02
 
-M1.2 <- lme(log(Mpsgut+1) ~ feeding.habit, random = ~1 + 1|author/year, weights = varExp(form =~ N), 
-          data = gutdata, method = "ML")
-AICc(M1, M1.2)
-anova(M1, M1.2) # trophic level is significant, p<0.01
+summary(M3)  # same p-value
+
+## Now consider effect of allometry
+
+allo <- subset(gutdata, total.length != 'NA')
+
+length(allo$total.length)  # 172 data point remaining
+
+M4 <- lme(log(Mpsgut+1) ~ TL*total.length, random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = allo, method = "REML")
+
+summary(M4)
+plot(resid(M4) ~ fitted(M4))  # variance does not look homogenous
+
+## try without variance structure
+
+M5 <- lme(log(Mpsgut+1) ~ TL*total.length, random = ~1|author/year,
+          data = allo, method = "REML")
+
+plot(resid(M5) ~ fitted(M5))  # doesn't look much better
+
+AICc(M4, M5)  # fit is a little better with error structure
+
+# figure out what is driving the increasing variance
+
+plot(resid(M4) ~ allo$TL)
+plot(resid(M4) ~ allo$total.length)  # looks like it's total length
+
+# try log-transformaing total length
+
+M6 <- lme(log(Mpsgut+1) ~ TL*log(total.length), random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = allo, method = "REML")
+
+plot(resid(M6) ~ fitted(M6))  # looks better
+
+AICc(M4, M6)  # M6 is a much better fit
+
+summary(M6)  # nothing is significant
+
+plot(exp(predict(M6)) ~ allo$TL)
+plot(exp(predict(M6)) ~ allo$total.length)
+
+## refit with ML
+
+M7 <- lme(log(Mpsgut+1) ~ TL*log(total.length), random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = allo, method = "ML")
+
+summary(M7)
+
+## Try all of this again in terms of concentration by weight
+
+M8 <- lme(log(gutconc+1) ~ TL, random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = gut.conc, method = "REML")
+
+plot(resid(M8) ~ fitted(M8))
+plot(resid(M8) ~ gut.conc$TL)
+plot(resid(M8) ~ gut.conc$N)
+
+## Try without weights
+
+M9 <- lme(log(gutconc+1) ~ TL, random = ~1|author/year, 
+          data = gut.conc, method = "REML")
+AICc(M8, M9)  # fits better with weights
+
+M10 <- lme(log(gutconc+1) ~ TL, random = ~1|author/year, 
+          weights = varPower(form =~ N), 
+          data = gut.conc, method = "ML")
+
+summary(M10)  # p = 0.06
+
+## account for body size 
+
+allo2 <- subset(gut.conc, total.length != 'NA')
+length(allo2$total.length)  # 146 data points
+
+M11 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = allo2, method = "REML")
+
+summary(M11)
+plot(resid(M11) ~ fitted(M11))
+plot(resid(M11) ~ allo2$TL)
+plot(resid(M11) ~ log(allo2$total.length))
+plot(resid(M11) ~ log(allo2$N))
+
+M12 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = allo2, method = "ML")
+
+summary(M12)
 
 
-plot(log(Mpsgut+1) ~ log(TL), data = gutdata)
-lines(fitted(M1)[sort(gutdata$TL)] ~ log(sort(gutdata$TL)), col = "red")
+## Now create model for 
 
-## Make predictions
+## Now look at habitat use and foraging method
 
-TL <- seq(from = 2, to = 5, by = 0.1)
-feeding.habit <- rep("Hunting macrofauna", length(TL))
-author <- rep(0, length(TL))
-N <- rep(100, length(TL))
-predict.M1 <- data.frame(TL,feeding.habit, author, N)
-head(predict.M1)
+summary(gutdata$environment)
+gutdata$environment[gutdata$environment == 'Pelagic'] <- 'Pelagic-neritic'
+gutdata$environment <- as.character(gutdata$environment)
+gutdata$environment <- as.factor(gutdata$environment)
 
-
-predict.M1$prediction <- predict(M1, predict.M1, level = 0)
-head(predict.M1)
-
-plot(prediction ~ TL, data = predict.M1)
-
-
-
-## Account for weight
-
-BSM.2 <- lm(log(W) ~ TL,  data = gut.conc)
-AICc(BSM.2)
-plot(BSM.2)
-summary(BSM.2) ## log(W) loosely related to trophic level by log(y) = 1.25(x) -0.28
+summary(gutdata$climate)
 
 summary(gutdata$feeding.habit)
 
-coefTable(M1)
+habit <- subset(gutdata, feeding.habit != 'Not listed')
+summary(habit$feeding.habit)
+habit$feeding.habit <- as.character(habit$feeding.habit)
+habit$feeding.habit <- as.factor(habit$feeding.habit)
 
-gutdata$M1predict <- fitted(M1)
+M13 <- lme(log(Mpsgut+1) ~ environment + climate + feeding.habit, 
+           random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = habit, method = "REML")
+plot(resid(M13) ~ fitted(M13))
 
-av.MPs <- gutdata
-av.MPs$author <- 0
-av.MPs$year <- 0
-head(av.MPs)
-gutdata$predict.av <- predict(M1, av.MPs, level = 0)
-head(gutdata)
+summary(M13)
+
+## refit with ML
+
+M14 <- lme(log(Mpsgut+1) ~ environment + climate + feeding.habit, 
+           random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = habit, method = "ML")
+
+## test significance of the predicotrs
+
+M15 <- lme(log(Mpsgut+1) ~ climate + feeding.habit, 
+           random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = habit, method = "ML")
+
+M16 <- lme(log(Mpsgut+1) ~ environment + feeding.habit, 
+           random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = habit, method = "ML")
+
+M17 <- lme(log(Mpsgut+1) ~ environment + climate, 
+           random = ~1|author/year, 
+           weights = varPower(form =~ N), 
+           data = habit, method = "ML")
+
+anova(M14, M15)  # environment not sig, p=0.79
+anova(M14, M16)  # climate not sig. p=0.58
+anova(M14, M17)  # feeding habit not sig. p = 0.50
+
+## Now test effect of region
+
+summary(trophicfish$IR)
+
+ingestion <- subset(trophicfish2, IR != "NA")
+
+summary(ingestion$IR)
+
+length(ingestion$species) # 413 data points
+length(unique(ingestion$species)) # 334 species
+length(unique(ingestion$family)) # from 128 families
+length(unique(ingestion$author)) # 53 studies
+tapply(ingestion$year, ingestion$author, unique)
+levels(ingestion$region)
+
+summary(ingestion$region)
+
+ingestion$region[ingestion$region == 'Northeast Atlantic'] <-
+  'Atlantic, Northeast'
+ingestion$region <- as.character(ingestion$region)
+ingestion$region <- as.factor(ingestion$region)
+
+library(car)
+library(lme4)
+library(nlme)
+library(mgcv)
+
+summary(ingestion)
+
+M18 <- glm(IR ~ region + environment + TL, 
+           data = ingestion, 
+           family = binomial)
+
+## try removing variables
+
+drop1(M18)  # remove environment
+
+M19 <- glm(IR ~ region + TL, 
+           data = ingestion, 
+           family = binomial)
+
+AICc(M18, M19)
+
+drop1(M19)  # remove TL
+
+M20 <- glm(IR ~ region, 
+           data = ingestion, 
+           family = binomial)
+
+plot(resid(M20) ~ fitted(M20))
+abline(0,0)
+
+plot(resid(M20) ~ ingestion$region)
+
+summary(M20)
+
+ingestion$region <- relevel(ingestion$region, 'Pacific, Southwest')
+
+ggplot(ingestion) +
+  geom_count(aes(x = reorder(region, IR, mean), 
+                 y = predict(M20, type = 'response'))) +
+  geom_errorbar(aes(
+    x = reorder(region, IR, sum),
+    ymin = 
+      predict(M20, type = 'response') - 
+      predict(M20, type = 'response',  se.fit = TRUE)$se.fit),
+    ymax = 
+      predict(M20, type = 'response') + 
+      predict(M20, type = 'response', se.fit = TRUE)$se.fit
+    ) +
+  labs(y = 'Ingestion Rate', x = 'FAO Region', size = 'Number of Datapoints') +
+  coord_flip(ylim = c(-0.06,1.2)) +
+  scale_y_continuous(breaks = c(0,0.25, 0.5, 0.75,1)) +
+  theme_classic()
+
+#####
+
+
+
+
+
 
 A <-
 ggplot(gutdata, aes(x=TL , y=log(Mpsgut+1))) + 
