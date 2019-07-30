@@ -1,3 +1,12 @@
+library(plyr)
+library(ggplot2)
+library(nlme)
+library(MuMIn)
+library(lme4)
+library(cowplot)
+library(car)
+library(mgcv)
+
 trophicfish <- 
   read.csv("~/GRAD school/Trophic Fish Paper/Data/trophicfishupdate.csv")
 
@@ -11,32 +20,46 @@ trophicfish$conc <- trophicfish$Mpsgut/trophicfish$W
 summary(trophicfish)
 trophicfish$IR <- trophicfish$ingest.rate/100
 
-library(plyr)
-
 ## Consolidate averages by study
 
-trophicfish2 <- ddply(trophicfish, 
-                      c('author', 'year', 'region', 'species', 'family',
-                        'common.name', 'genus', 'environment', 'climate', 
-                        'red.list', 'feeding.type', 'feeding.habit', 'TL', 
-                        'min.size', 'float.meth', 'dig.meth', 'count.meth', 
-                        'polymer.meth', 'maj.fib', 'maj.under.one.mm', 
-                        'maj.col', 'exclude.fib'), 
-                      summarise, 
-                      fork.length = sum(fork.length*N)/sum(N), 
-                      total.length = sum(total.length*N)/sum(N), 
-                      W = sum(W*N)/sum(N), 
-                      GW = sum(GW*N)/sum(N),
-                      N = sum(N), 
-                      IR = sum(IR*N)/sum(N), 
-                      Mpsgut = sum(Mpsgut*N)/sum(N), 
-                      SDMPsgut = sum(SDMPsgut*N)/sum(N)
-                      )
+trophicfish$fork.lengthprod <- trophicfish$fork.length*trophicfish$N
+trophicfish$total.lengthprod <- trophicfish$total.length*trophicfish$N
+trophicfish$Wprod <- trophicfish$W*trophicfish$N
+trophicfish$GWprod <- trophicfish$GW*trophicfish$N
+trophicfish$IRprod <- trophicfish$IR*trophicfish$N
+trophicfish$Mpsgutprod <- trophicfish$Mpsgut*trophicfish$N
+trophicfish$ SDMPsgutprod <- trophicfish$ SDMPsgut*trophicfish$N
 
-trophicfish2$IR <- with(trophicfish2, ingested/N)
+trophicfish2 <- ddply(trophicfish, 
+                      c('author', 'year', 'region', 'species', 'family', 
+                        'genus', 'environment', 'climate', 'red.list', 
+                        'feeding.type', 'feeding.habit', 'TL', 'min.size', 
+                        'float.meth', 'dig.meth', 'count.meth', 'polymer.meth',
+                        'polymer.ID', 'blanks', 'maj.fib', 'maj.under.one.mm', 
+                        'maj.polymer', 'maj.col', 'exclude.fib'), 
+                      summarise, 
+                      fork.lengthprod = sum(fork.lengthprod), 
+                      total.lengthprod = sum(total.lengthprod), 
+                      Wprod = sum(Wprod), 
+                      GWprod = sum(GWprod),
+                      N = sum(N), 
+                      IRprod = sum(IRprod), 
+                      Mpsgutprod = sum(Mpsgutprod), 
+                      SDMPsgutprod = sum(SDMPsgutprod)
+)
+
+trophicfish2$fork.length <- trophicfish2$fork.lengthprod/trophicfish2$N
+trophicfish2$total.length <- trophicfish2$total.lengthprod/trophicfish2$N
+trophicfish2$W <- trophicfish2$Wprod/trophicfish2$N
+trophicfish2$GW <- trophicfish2$GWprod/trophicfish2$N
+trophicfish2$IR <- trophicfish2$IRprod/trophicfish2$N
+trophicfish2$Mpsgut <- trophicfish2$Mpsgutprod/trophicfish2$N
+trophicfish2$SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
+
+
 summary(trophicfish2)
-length(trophicfish2$species) # 482 dta points
-length(trophicfish$species) # consolidated from 613 data point
+length(trophicfish2$species) # 480 dta points
+length(trophicfish$species) # consolidated from 557 data point
 length(unique(trophicfish2$species)) # 383 species
 length(unique(trophicfish2$family)) # from 131 families
 
@@ -47,15 +70,8 @@ length(unique(trophicfish2$study))  # 63 studies
 
 summary(trophicfish2$min.size)
 
-trophicfish2$min.size <- mapvalues(trophicfish2$min.size, from = c(""), 
-                                   to = c(NA))
-
 summary(trophicfish2$min.size)
 
-trophicfish2$min.size <- 
-  as.numeric(levels(trophicfish2$min.size))[trophicfish2$min.size]
-
-summary(trophicfish2$min.size)
 hist(trophicfish2$min.size)
 
 trophicfish2$climate <- 
@@ -65,8 +81,8 @@ gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
 length(gutdata$species) # 366 data points
-length(unique(gutdata$species)) # 382 species
-length(unique(gutdata$family)) # from 120 families
+length(unique(gutdata$species)) # 384 species
+length(unique(gutdata$family)) # from 121 families
 length(unique(gutdata$study)) # from 49 studies
 
 summary(gutdata)
@@ -83,8 +99,6 @@ gutdata$TL <- as.numeric(gutdata$TL)
 
 summary(gutdata$Mpsgut)
 gutdata$Mpsgut <- as.numeric(gutdata$Mpsgut)
-
-library(ggplot2)
 
 ggplot(gutdata, aes(x=climate , y=log(Mpsgut))) + 
   geom_boxplot(size=1, fill = 'grey80') + 
@@ -105,10 +119,10 @@ summary(gutdata$gutconc)
 gut.conc <- subset(gutdata, gutconc != 'NA' & gutconc != 'Inf')
 summary(gut.conc)
 
-length(gut.conc$species) # 191 data points
-length(unique(gut.conc$species)) # 169 species
+length(gut.conc$species) # 194 data points
+length(unique(gut.conc$species)) # 171 species
 length(unique(gut.conc$family)) # from 70 families
-length(unique(gut.conc$study)) # 24 studies
+length(unique(gut.conc$study)) # 25 studies
 length(unique(gut.conc$region)) ## 13 regions
 
 summary(gut.conc)
@@ -149,29 +163,422 @@ plot(log(Mpsgut + 1) ~ negN, data = gutdata)  # seems to solve the issue
 
 plot(log(Mpsgut + 1) ~ TL, data = gutdata) # variance doesn't look too bad
 
-library(nlme)
-library(MuMIn)
+## Does # MPs in the gut correlate with trophic level?
 
-## First make trophic level/allometric models
+## Need to account for study FAO area, habitat, and climate
 
-M1 <- lme(log(Mpsgut+1) ~ TL, random = ~1|study, 
+mod1 <- lmer(Mpsgut ~ TL + environment + climate + region + (1 | study),
+             weights = N,
+             data = gutdata)
+summary(mod1)
+plot(resid(mod1) ~ fitted(mod1))  ## variance increases with mean
+
+# try log transforming Mpsgut
+
+mod2 <- lme(log(Mpsgut+1) ~ TL + environment + climate + region, 
+            weights = varExp(form =~ N), 
+            random = ~ 1 | study,
+            method = 'ML',
+            data = gutdata)
+summary(mod2)
+plot(resid(mod2) ~ fitted(mod2))  # way better
+AICc(mod1, mod2)
+
+drop1(mod2)  # can remove environment
+
+mod3 <- update(mod2, ~ . -environment)
+summary(mod3)
+AICc(mod2, mod3)
+
+drop1(mod3)  # can remove climate
+
+mod4 <- update(mod3, ~ . -climate)
+summary(mod4)
+AICc(mod3, mod4)
+
+drop1(mod4)  ## can remove trophic level
+
+mod5 <- update(mod4, ~ . -TL)
+summary(mod5)
+AICc(mod4, mod5)
+
+mod6 <- update(mod5, ~ . -region)
+
+anova(mod5, mod6)  # region is significant, p = 0.02
+
+ggplot(gutdata, aes(x = reorder(region, predict(mod5, level = 0), mean))) + 
+  geom_errorbar(aes(ymin = predict(mod5, level = 0) - 
+                    predict(mod5, level = 0, se.fit = TRUE)$se.fit,
+                  ymax = predict(mod5, level = 0) + 
+                    predict(mod5, level = 0, se.fit = TRUE)$se.fit
+                  )) +
+  geom_point(aes(y = predict(mod5, level = 0))) +
+  labs(y = '# MPs in Gut', x = 'FAO Region', size = 'Number of Studies') +
+  coord_flip() +
+  theme_classic() + 
+  theme(text = element_text(size=7), 
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7))
+
+coef(mod4)
+
+## Effect of region on ingestion rates
+## Need to account for study FAO area
+
+ingestion <- subset(trophicfish2, IR != "NA")
+
+summary(ingestion$IR)
+
+length(ingestion$species) # 413 data points
+length(unique(ingestion$species)) # 334 species
+length(unique(ingestion$family)) # from 128 families
+length(unique(ingestion$study)) # 56 studies
+
+levels(ingestion$region)
+
+summary(ingestion$region)
+
+ingestion$region[ingestion$region == 'Northeast Atlantic'] <-
+  'Atlantic, Northeast'
+ingestion$region <- as.character(ingestion$region)
+ingestion$region <- as.factor(ingestion$region)
+
+summary(ingestion)
+
+mod7 <- glm(IR ~ TL + region + study,
+              weights = N,
+              data = ingestion, 
+              family = binomial(link = 'logit'))
+summary(mod7)  ## Model will not converge with study as a random effect
+plot(resid(mod7) ~ fitted(mod7))
+
+drop1(mod7)
+
+ggplot(ingestion) +
+  geom_point(aes(x = TL,
+                 y = IR),
+             size = 0.5) +
+  geom_line(aes(x = TL,
+                 y = predict(mod7, type = 'response', level = 0),
+                 colour = study)) +
+  labs(y = 'Ingestion Rate', x = 'Trophic Level') +
+  facet_wrap(~ region) +
+  theme_classic() + 
+  theme(text = element_text(size=7), 
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = 'none')
+
+## Do microplastic numbers in the gut correlate with body size? 
+
+allo <- subset(gutdata, total.length != 'NA' & W != 'NA')
+
+length(allo$total.length)  # 146 data point remaining
+
+allo$cen.W <- (mean(allo$W) - allo$W)/sd(allo$W)
+allo$cen.tot.l <- (mean(allo$total.length) - allo$total.length)/sd(allo$total.length)
+
+
+mod8 <- lme(
+  log(Mpsgut + 1) ~ cen.W + cen.tot.l,
+  random = ~ 1 | study,
+  weights = varPower(form =  ~ N),
+  data = allo,
+  method = "REML"
+)
+
+summary(mod8)
+plot(resid(mod8) ~ fitted(mod8))  # variance does not look homogenous
+
+## try without variance structure
+
+mod9 <- lme(
+  log(Mpsgut + 1) ~ cen.W + cen.tot.l,
+  random = ~ 1 | study,
+  data = allo,
+  method = "REML"
+)
+
+plot(resid(mod9) ~ fitted(mod9))  # doesn't look much better
+
+AICc(mod8, mod9)  # fit is a little better withvariance structure
+
+# figure out what is driving the increasing variance
+
+plot(resid(mod8) ~ allo$cen.W)
+plot(resid(mod8) ~ allo$cen.tot.l)  # looks like it's total length and weight
+
+# try log-transformaing total length and total width before centering and scaling
+
+allo$cen.log.W <- (mean(log(allo$W)) - log(allo$W)) / sd(log(allo$W))
+allo$cen.log.tot.l <- (mean(log(allo$total.length)) -
+                         log(allo$total.length)) /
+  sd(log(allo$total.length))
+
+
+mod10 <- lme(log(Mpsgut+1) ~ cen.log.W + cen.log.tot.l, random = ~1|study, 
           weights = varPower(form =~ N), 
-          data = gutdata, method = "REML")
-summary(M1)
-plot(resid(M1) ~ fitted(M1))
+          data = allo, method = "REML")
+
+plot(resid(mod10) ~ fitted(mod10))  # looks better
+
+AICc(mod8, mod10)  # slightly better AICc value
+
+plot(resid(mod10) ~ allo$cen.log.tot.l)
+plot(resid(mod10) ~ allo$cen.log.W)  # way better
+
+drop1(mod10)
+
+mod11 <- lme(log(Mpsgut+1) ~ cen.log.W + cen.log.tot.l + region, random = ~1|study, 
+             weights = varPower(form =~ N), 
+             data = allo, method = "ML")
+
+drop1(mod11)
+
+mod12 <- update(mod11, ~ . -cen.log.tot.l)
+
+AICc(mod11, mod12)
+
+drop1(mod12)  # can remove the effect of region
+
+mod13 <- update(mod12, ~. -region)
+
+AICc(mod12, mod13)
+
+summary(mod13)
+
+plot(exp(predict(mod13, type = 'response')) ~ log(allo$W))
+
+## number of MPs in gut appear to increase a bit with increasing weight
+## but not a whole lot
+
+
+## Does ingestion rate increase with body size?
+
+allo2 <- subset(ingestion, total.length != 'NA' & W != 'NA')
+
+length(allo2$total.length)  # 130 data point remaining
+
+allo2$cen.log.W <- (mean(log(allo2$W)) - log(allo2$W)) / sd(log(allo2$W))
+allo2$cen.log.tot.l <- (mean(log(allo2$total.length)) -
+                         log(allo2$total.length)) /
+  sd(log(allo2$total.length))
+
+mod14 <- glm(IR ~ cen.log.tot.l + cen.log.W + region,
+            weights = N,
+            data = allo2, 
+            family = binomial(link = 'logit'))
+summary(mod14)
+
+plot(resid(mod14) ~ fitted(mod14))
+
+drop1(mod14)  ## best fitting model, can't remove anything
+
+plot(predict(mod14, type = 'response') ~ allo2$cen.log.tot.l)
+plot(predict(mod14, type = 'response') ~ allo2$cen.log.W)
+plot(predict(mod14, type = 'response') ~ allo2$region)
+
+
+## Is there an effect of methodology on reported MP gut numbers?
+
+mod15 <- lmer(log(Mpsgut + 1) ~ min.size + polymer.ID + blanks + 
+                region + (1 | study),
+              data = gutdata)
+
+plot(resid(mod15) ~ fitted(mod15))
+
+drop1(mod15)  # remove region
+
+mod16 <- update(mod15, ~ . -region)
+
+AICc(mod15, mod16)
+
+drop1(mod16)  # can remove polymer.ID
+
+mod17 <- update(mod16, ~ . -polymer.ID)
+AICc(mod16, mod17)
+
+drop1(mod17)  # can remove blanks
+
+mod18 <- update(mod17, ~ . -blanks)
+
+AICc(mod17, mod18)
+
+drop1(mod18)  # stop here
+
+summary(mod18)
+
+plot(resid(mod18) ~ fitted(mod18))
+
+plot(resid(mod18) ~ gutdata$min.size)
+
+plot(exp(predict(mod18, type = 'response'))-1 ~ gutdata$min.size)
+
+plot(min.size ~ region, data = gutdata)
+
+png(
+  filename = "LOD Plot.png",
+  width = 17,
+  height = 17,
+  units = "cm",
+  pointsize = 7,
+  res = 600
+)
+
+ggplot(gutdata) +
+  geom_jitter(aes(x = reorder(region, Mpsgut, mean),
+                 y = Mpsgut,
+                 fill = min.size),
+             colour = 'black', size = 1.5, shape = 21, alpha = 0.5) +
+  labs(y = '# MPs in Gut', x = 'FAO Region', fill = 'Limit of Detection') +
+  scale_y_continuous(trans = 'log1p') +
+  coord_flip() +
+  theme_classic() + 
+  scale_colour_distiller(type = 'div', 
+                         palette = 'RdYlBu', 
+                         aesthetics = 'fill') +
+  theme(text = element_text(size=7), 
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7))
+
+dev.off()
+
+## Try trophic level/regional model using max 100 micron LOD
+
+gutdata100 <- subset(gutdata, min.size <= 100)
+
+length(gutdata100$Mpsgut)  # 142 data points remaining
+
+gutdata100$region <- as.character(gutdata100$region)
+gutdata100$region <- as.factor(gutdata100$region)
+
+plot(Mpsgut ~ region, data = gutdata100)
+plot(Mpsgut ~ TL, data = gutdata100)
+
+
+
+## refit with ML
+
+M7 <- lme(log(Mpsgut+1) ~ TL*log(total.length), random = ~1|study, 
+          weights = varPower(form =~ N), 
+          data = allo, method = "ML")
+
+summary(M7)
+
+png(
+  filename = "totallengthplot.png",
+  width = 9,
+  height = 8,
+  units = "cm",
+  pointsize = 7,
+  res = 600
+)
+
+ggplot(allo, aes(x=total.length , y=Mpsgut)) +
+  geom_jitter(aes(size=N), alpha = 5/10, shape = 21) + 
+  xlab("") +
+  ylab("# MPs in Gut") +
+  xlab("Total Length (cm)") +
+  scale_size_continuous(range = c(1, 4)) +
+  scale_x_continuous(trans = 'log10',
+                     breaks = c(0, 1, 10, 100, 1000),
+                     limits = c(0.1, 1000)) +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 5, 10, 15)) +
+  theme_classic() +
+  labs(size="n") +
+  guides(colour = guide_legend(override.aes = list(size=6))) +
+  theme(text = element_text(size=7), 
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        legend.position="right",
+        legend.justification="left",
+        legend.margin=margin(0,0,0,0))
+
+dev.off()
+
+
+
+
+allo2 <- subset(gut.conc, total.length != 'NA')
+length(allo2$total.length)  # 146 data points
+
+M11 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|study, 
+           weights = varPower(form =~ N), 
+           data = allo2, method = "REML")
+
+summary(M11)
+plot(resid(M11) ~ fitted(M11))
+plot(resid(M11) ~ allo2$TL)
+plot(resid(M11) ~ log(allo2$total.length))
+plot(resid(M11) ~ log(allo2$N))
+
+M12 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|study, 
+           weights = varPower(form =~ N), 
+           data = allo2, method = "ML")
+
+summary(M12)
+
+png(
+  filename = "concplot.png",
+  width = 9,
+  height = 8,
+  units = "cm",
+  pointsize = 7,
+  res = 600
+)
+
+ggplot(allo2, aes(x=TL , y=gutconc)) +
+  geom_jitter(aes(size=N), alpha = 5/10, shape = 21) + 
+  xlab("") +
+  ylab("# MPs in Gut per Gram Body Weight") +
+  xlab("Trophic Level") +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0:6)) +
+  theme_classic() +
+  labs(size="n") +
+  guides(colour = guide_legend(override.aes = list(size=6))) +
+  theme(text = element_text(size=7), 
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        legend.position="right",
+        legend.justification="left",
+        legend.margin=margin(0,0,0,0))
+
+dev.off()
+
+
+
+
+
+
+#################3
+
+M1 <- lme(log(Mpsgut + 1) ~ TL, random = ~1|author/year, data = gutdata, 
+          method = "REML")
+    summary(M1)
+plot(resid(M1) ~ fitted(M1))  # weird pattern for lower concentrations
+plot(resid(M1) ~ gutdata$TL)  # looks good
+plot(resid(M1) ~ gutdata$N)  # large variation according to sample size
+
 abline(0,0)
 
-## Compare fit without weights
+## Compare fit with variance structure
 
-M2 <- lme(log(Mpsgut+1) ~ TL, random = ~1|author/year, 
+M2 <- lme(log(Mpsgut+1) ~ TL, random = ~1|study, 
+          weights = var(form =~ N), 
           data = gutdata, method = "REML")
 
-AICc(M1, M2)  # better fit with weights
+AICc(M1, M2)  # better fit without variance structure
 
 plot(resid(M2) ~ fitted(M2))
 
 plot(resid(M1) ~ gutdata$TL)
-plot(resid(M1) ~ log(gutdata$N))
+plot(resid(M1) ~ gutdata$N)
 
 plot(Mpsgut ~ TL, data = gutdata)
 lines(exp(predict(M1, type = 'response')) - 1, col = 'red')
@@ -223,87 +630,6 @@ dev.off()
 
 ## Now consider effect of allometry
 
-allo <- subset(gutdata, total.length != 'NA')
-
-length(allo$total.length)  # 172 data point remaining
-
-M4 <- lme(log(Mpsgut+1) ~ TL*total.length, random = ~1|study, 
-          weights = varPower(form =~ N), 
-          data = allo, method = "REML")
-
-summary(M4)
-plot(resid(M4) ~ fitted(M4))  # variance does not look homogenous
-
-## try without variance structure
-
-M5 <- lme(log(Mpsgut+1) ~ TL*total.length, random = ~1|study,
-          data = allo, method = "REML")
-
-plot(resid(M5) ~ fitted(M5))  # doesn't look much better
-
-AICc(M4, M5)  # fit is a little better with error structure
-
-# figure out what is driving the increasing variance
-
-plot(resid(M4) ~ allo$TL)
-plot(resid(M4) ~ allo$total.length)  # looks like it's total length
-
-# try log-transformaing total length
-
-M6 <- lme(log(Mpsgut+1) ~ TL*log(total.length), random = ~1|study, 
-          weights = varPower(form =~ N), 
-          data = allo, method = "REML")
-
-plot(resid(M6) ~ fitted(M6))  # looks better
-
-AICc(M4, M6)  # M6 is a much better fit
-
-summary(M6)  # nothing is significant
-
-plot(exp(predict(M6)) ~ allo$TL)
-plot(exp(predict(M6)) ~ allo$total.length)
-
-## refit with ML
-
-M7 <- lme(log(Mpsgut+1) ~ TL*log(total.length), random = ~1|study, 
-          weights = varPower(form =~ N), 
-          data = allo, method = "ML")
-
-summary(M7)
-
-png(
-  filename = "totallengthplot.png",
-  width = 9,
-  height = 8,
-  units = "cm",
-  pointsize = 7,
-  res = 600
-)
-
-ggplot(allo, aes(x=total.length , y=Mpsgut)) +
-  geom_jitter(aes(size=N), alpha = 5/10, shape = 21) + 
-  xlab("") +
-  ylab("# MPs in Gut") +
-  xlab("Total Length (cm)") +
-  scale_size_continuous(range = c(1, 4)) +
-  scale_x_continuous(trans = 'log10',
-                     breaks = c(0, 1, 10, 100, 1000),
-                     limits = c(0.1, 1000)) +
-  scale_y_continuous(trans = 'log1p',
-                     breaks = c(0, 1, 5, 10, 15)) +
-  theme_classic() +
-  labs(size="n") +
-  guides(colour = guide_legend(override.aes = list(size=6))) +
-  theme(text = element_text(size=7), 
-        axis.text.x = element_text(size = 7),
-        axis.text.y = element_text(size = 7),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        legend.position="right",
-        legend.justification="left",
-        legend.margin=margin(0,0,0,0))
-
-dev.off()
 
 ## Try all of this again in terms of concentration by weight
 
@@ -329,54 +655,7 @@ summary(M10)  # p = 0.07
 
 ## account for body size 
 
-allo2 <- subset(gut.conc, total.length != 'NA')
-length(allo2$total.length)  # 146 data points
 
-M11 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|study, 
-           weights = varPower(form =~ N), 
-           data = allo2, method = "REML")
-
-summary(M11)
-plot(resid(M11) ~ fitted(M11))
-plot(resid(M11) ~ allo2$TL)
-plot(resid(M11) ~ log(allo2$total.length))
-plot(resid(M11) ~ log(allo2$N))
-
-M12 <- lme(log(gutconc+1) ~ TL*log(total.length), random = ~1|study, 
-           weights = varPower(form =~ N), 
-           data = allo2, method = "ML")
-
-summary(M12)
-
-png(
-  filename = "concplot.png",
-  width = 9,
-  height = 8,
-  units = "cm",
-  pointsize = 7,
-  res = 600
-)
-
-ggplot(allo2, aes(x=TL , y=gutconc)) +
-  geom_jitter(aes(size=N), alpha = 5/10, shape = 21) + 
-  xlab("") +
-  ylab("# MPs in Gut per Gram Body Weight") +
-  xlab("Trophic Level") +
-  scale_y_continuous(trans = 'log1p',
-                     breaks = c(0:6)) +
-  theme_classic() +
-  labs(size="n") +
-  guides(colour = guide_legend(override.aes = list(size=6))) +
-  theme(text = element_text(size=7), 
-        axis.text.x = element_text(size = 7),
-        axis.text.y = element_text(size = 7),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        legend.position="right",
-        legend.justification="left",
-        legend.margin=margin(0,0,0,0))
-
-dev.off()
 
 ## Now look at habitat use and foraging method
 
@@ -434,30 +713,8 @@ anova(M14, M17)  # feeding habit not sig. p = 0.64
 
 summary(trophicfish2$IR)
 
-ingestion <- subset(trophicfish2, IR != "NA")
 
-summary(ingestion$IR)
-
-length(ingestion$species) # 413 data points
-length(unique(ingestion$species)) # 334 species
-length(unique(ingestion$family)) # from 128 families
-length(unique(ingestion$study)) # 56 studies
-
-levels(ingestion$region)
-
-summary(ingestion$region)
-
-ingestion$region[ingestion$region == 'Northeast Atlantic'] <-
-  'Atlantic, Northeast'
-ingestion$region <- as.character(ingestion$region)
-ingestion$region <- as.factor(ingestion$region)
-
-library(lme4)
-
-summary(ingestion)
-
-M18 <- glmer(IR ~ region + environment + TL +
-               (1|study), 
+M18 <- glm(IR ~ region + environment + TL, 
            data = ingestion, 
            family = binomial)
 
@@ -583,8 +840,6 @@ ggplot(gutdata, aes(x = TL , y = log(Mpsgut+1), colour = feeding.habit)) +
         legend.justification="left",
         legend.margin=margin(0,0,0,0))
 
-library(cowplot)
-
 png(filename = "gutMPsplots.png",width = 24, height = 20, units = "cm", pointsize = 12, res=600)
 
 plot_grid(A, B, labels=c("A","B"), ncol = 1, hjust = -1.4, nrow =2, label_size=12, align = 'hv')
@@ -652,11 +907,6 @@ tapply(ingestion$year, ingestion$author, unique)
 levels(ingestion$region)
 
 summary(ingestion$region)
-
-library(car)
-library(lme4)
-library(nlme)
-library(mgcv)
 
 summary(ingestion)
 
