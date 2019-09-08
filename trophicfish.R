@@ -455,6 +455,83 @@ gutdata100$region <- as.factor(gutdata100$region)
 plot(Mpsgut ~ region, data = gutdata100)
 plot(Mpsgut ~ TL, data = gutdata100)
 
+mod19 <- lme(
+  log(Mpsgut + 1) ~ TL + environment + climate + region,
+  weights = varExp(form = ~ N),
+  random = ~ 1 | study,
+  method = 'ML',
+  data = gutdata100
+)
+
+plot(resid(mod19, type = 'pearson') ~ predict(mod19, type = 'response'))
+plot(resid(mod19, type = 'pearson') ~ gutdata100$N)
+
+## Try without variance structure
+
+mod20 <- lme(
+  log(Mpsgut + 1) ~ TL + environment + climate + region,
+  random = ~ 1 | study,
+  method = 'ML',
+  data = gutdata100
+)
+
+AICc(mod19, mod20)  # better fit without variance structure
+
+drop1(mod20)  # remove environment
+
+mod21 <- update(mod20, ~. -environment)
+
+drop1(mod21)  # remove climate
+
+mod22 <- update(mod21, ~. -climate)
+
+drop1(mod22)  # stop here
+summary(mod22)
+
+plot(resid(mod22, type = 'pearson') ~ fitted(mod22, type = 'response'))
+plot(resid(mod22) ~ gutdata100$region)  ## pattern in residuals by region
+plot(resid(mod22) ~ gutdata100$TL)
+
+mod23 <- update(mod22, ~. -region)
+mod24 <- update(mod22, ~. -TL)
+
+anova(mod22, mod23)  # region significant, p = 0.01
+anova(mod22, mod24)  # trophic level significant, p = 0.02
+
+ggplot(gutdata100) +
+  geom_ribbon(aes(x = TL,
+                  ymin = exp(predict(mod22, type = 'response', level = 0) - 
+                               predict(mod22, type = 'response', level = 0,
+                                       se.fit = TRUE)$se.fit),
+                  ymax = exp(predict(mod22, type = 'response', level = 0) + 
+                               predict(mod22, type = 'response', level = 0,
+                                       se.fit = TRUE)$se.fit),
+                  fill = region
+                  ),
+              alpha = 0.5) +
+  geom_line(aes(x = TL,
+                y = exp(predict(
+                  mod22, type = 'response', level = 0)),
+                colour = region
+                ),
+            linetype = 'dashed') +
+  geom_jitter(aes(x = TL,
+                 y = Mpsgut,
+                 colour = region),
+             size = 0.5) +
+  labs(y = 'Ingestion Rate', x = 'Trophic Level') +
+  scale_y_continuous(trans = 'log1p') +
+  scale_color_brewer(type = 'qual', palette = 'Set3', 
+                     aesthetics = c('fill', 'colour')) +
+  theme_classic() +
+  theme(
+    text = element_text(size = 7),
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    legend.position = 'none'
+  )
+
+
 
 
 ## refit with ML
