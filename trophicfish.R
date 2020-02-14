@@ -6,9 +6,15 @@ library(lme4)
 library(cowplot)
 library(car)
 library(mgcv)
+library(glmmTMB)
+library(ggthemes)
+library(merTools)
 
 trophicfish <- 
-  read.csv("~/GRAD school/Trophic Fish Paper/Data/trophicfishupdate.csv")
+  read.csv("trophicfishdata.csv", header = TRUE)
+
+names(trophicfish)
+trophicfish <- trophicfish[1:42]
 
 summary(trophicfish)
 
@@ -31,8 +37,8 @@ trophicfish$Mpsgutprod <- trophicfish$Mpsgut*trophicfish$N
 trophicfish$ SDMPsgutprod <- trophicfish$ SDMPsgut*trophicfish$N
 
 trophicfish2 <- ddply(trophicfish, 
-                      c('author', 'year', 'region', 'species', 'family', 
-                        'genus', 'environment', 'climate', 'red.list', 
+                      c('author', 'study.habitat', 'year', 'region', 'species', 
+                        'family', 'genus', 'environment', 'climate', 'red.list', 
                         'feeding.type', 'feeding.habit', 'TL', 'min.size', 
                         'float.meth', 'dig.meth', 'count.meth', 'polymer.meth',
                         'polymer.ID', 'blanks', 'maj.fib', 'maj.under.one.mm', 
@@ -58,32 +64,27 @@ trophicfish2$SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
 
 
 summary(trophicfish2)
-length(trophicfish2$species) # 480 dta points
-length(trophicfish$species) # consolidated from 557 data point
-length(unique(trophicfish2$species)) # 383 species
-length(unique(trophicfish2$family)) # from 131 families
+length(trophicfish2$species) # 780 dta points
+length(trophicfish$species) # consolidated from 872 data point
+length(unique(trophicfish2$species)) # ~607 species
+length(unique(trophicfish2$family)) # from 165 families
 
 trophicfish2$study <- with(trophicfish2, paste0(author, year))
 trophicfish2$study <- as.factor(trophicfish2$study)
 head(trophicfish2)
-length(unique(trophicfish2$study))  # 63 studies
-
-summary(trophicfish2$min.size)
+length(unique(trophicfish2$study))  # 109 + 1 studies
 
 summary(trophicfish2$min.size)
 
 hist(trophicfish2$min.size)
 
-trophicfish2$climate <- 
-  mapvalues(trophicfish2$climate, from = "Benthopelagic", to = "Temperate")
-
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
-length(gutdata$species) # 366 data points
-length(unique(gutdata$species)) # 384 species
-length(unique(gutdata$family)) # from 121 families
-length(unique(gutdata$study)) # from 49 studies
+length(gutdata$species) # 654 data points
+length(unique(gutdata$species)) # 521 species
+length(unique(gutdata$family)) # from 152 families
+length(unique(gutdata$study)) # from 91 + 1 studies
 
 summary(gutdata)
 gutdata$region <- as.character(gutdata$region)
@@ -100,7 +101,7 @@ gutdata$TL <- as.numeric(gutdata$TL)
 summary(gutdata$Mpsgut)
 gutdata$Mpsgut <- as.numeric(gutdata$Mpsgut)
 
-ggplot(gutdata, aes(x=climate , y=log(Mpsgut))) + 
+ggplot(gutdata, aes(x=climate , y=Mpsgut)) + 
   geom_boxplot(size=1, fill = 'grey80') + 
   facet_wrap(gutdata$environment) +
   geom_smooth(method = 'lm', colour = "black", se = TRUE) +
@@ -113,19 +114,19 @@ ggplot(gutdata, aes(x=climate , y=log(Mpsgut))) +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 
-gutdata$gutconc <- with(gutdata, Mpsgut/log(W))
+gutdata$gutconc <- with(gutdata, Mpsgut/W)
 summary(gutdata$gutconc)
 
-gut.conc <- subset(gutdata, gutconc != 'NA' & gutconc != 'Inf')
+gut.conc <- subset(gutdata, gutconc != 'NA')
 summary(gut.conc)
 
-length(gut.conc$species) # 194 data points
-length(unique(gut.conc$species)) # 171 species
-length(unique(gut.conc$family)) # from 70 families
-length(unique(gut.conc$study)) # 25 studies
-length(unique(gut.conc$region)) ## 13 regions
+length(gut.conc$species) # 428 data points
+length(unique(gut.conc$species)) # ~361 species
+length(unique(gut.conc$family)) # from 111 families
+length(unique(gut.conc$study)) # 55 studies
+length(unique(gut.conc$region)) ## 20 regions
 
-summary(gut.conc)
+levels(gutdata$feeding.habit)
 
 gutdata$feeding.habit <- mapvalues(gutdata$feeding.habit, 
                                    from = levels(gutdata$feeding.habit),
@@ -134,6 +135,7 @@ gutdata$feeding.habit <- mapvalues(gutdata$feeding.habit,
                                           "Filtering plankton",
                                           "Grazing on aquatic plants", 
                                           "Hunting macrofauna",
+                                          "Other",
                                           "Selective plankton feeding", 
                                           "Variable"))
 
@@ -165,54 +167,74 @@ plot(log(Mpsgut + 1) ~ TL, data = gutdata) # variance doesn't look too bad
 
 ## Does # MPs in the gut correlate with trophic level?
 
-## Need to account for study FAO area, habitat, and climate
+## Need to account for freshwater vs. marine, region, and sample size
 
-mod1 <- lmer(Mpsgut ~ TL + environment + climate + region + (1 | study),
-             weights = N,
-             data = gutdata)
+mod1 <- glmmTMB(Mpsgut ~ TL*study.habitat + (1 | region), 
+                weights = N, data = gutdata)
 summary(mod1)
-plot(resid(mod1) ~ fitted(mod1))  ## variance increases with mean
+plot(resid(mod1, type = 'pearson') ~ fitted(mod1))  ## variance is a bit weird
 
 # try log transforming Mpsgut
 
-mod2 <- lme(log(Mpsgut+1) ~ TL + environment + climate + region, 
-            weights = varExp(form =~ N), 
-            random = ~ 1 | study,
-            method = 'ML',
-            data = gutdata)
+mod2 <- glmmTMB(log(Mpsgut + 1) ~ TL*study.habitat + (1 | region), 
+                weights = N, data = gutdata)
 summary(mod2)
-plot(resid(mod2) ~ fitted(mod2))  # way better
-AICc(mod1, mod2)
+plot(resid(mod2, type = 'pearson') ~ fitted(mod2)) 
+plot(resid(mod2, type = 'pearson') ~ na.omit(gutdata$TL))
+plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$study.habitat)
+AICc(mod1, mod2) # way better model fit, variance doesn't look too bad
 
-drop1(mod2)  # can remove environment
+## Plot model predictions
 
-mod3 <- update(mod2, ~ . -environment)
-summary(mod3)
-AICc(mod2, mod3)
+TL <- subset(gutdata, TL != 'NA')$TL
+study.habitat <- subset(gutdata, TL != 'NA')$study.habitat
+region <- rep(0, 
+              times = length(subset(gutdata,TL != 'NA')$TL))
+N <- subset(gutdata, TL != 'NA')$N
 
-drop1(mod3)  # can remove climate
+newdata1 <- data.frame(TL, study.habitat, region, N)
 
-mod4 <- update(mod3, ~ . -climate)
-summary(mod4)
-AICc(mod3, mod4)
+prediction <- exp(predict(mod2)-1)
+upper <- exp(predict(mod2) - 
+               (2*predict(mod2, se.fit = TRUE)$se.fit) - 1)
+lower <- exp(predict(mod2) + 
+               (2*predict(mod2, se.fit = TRUE)$se.fit) - 1)
 
-drop1(mod4)  ## can remove trophic level
+png('Gut Content Plot.png', width = 30, height = 15, units = 'cm', res = 300)
 
-mod5 <- update(mod4, ~ . -TL)
-summary(mod5)
-AICc(mod4, mod5)
+ggplot(subset(gutdata, TL != 'NA')) +
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = region), 
+              alpha = 0.3) +
+  geom_line(aes(x = TL, y = prediction, colour = region)) +
+  geom_jitter(aes(x = TL, y = Mpsgut, size = N, colour = region),
+              alpha = 0.5, shape = 1) +
+  facet_grid(. ~ study.habitat) +
+  labs(x = 'Trophic Level',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  coord_cartesian(xlim = c(2,4.7), ylim = c(0,30)) +
+  scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 30, by = 5), 
+                     trans = 'log1p') +
+  scale_fill_discrete(labels = FALSE) +
+  theme_few() +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16)
+  )
 
-mod6 <- update(mod5, ~ . -region)
+dev.off()
 
-anova(mod5, mod6)  # region is significant, p = 0.02
-
-ggplot(gutdata, aes(x = reorder(region, predict(mod5, level = 0), mean))) + 
-  geom_errorbar(aes(ymin = predict(mod5, level = 0) - 
-                    predict(mod5, level = 0, se.fit = TRUE)$se.fit,
-                  ymax = predict(mod5, level = 0) + 
-                    predict(mod5, level = 0, se.fit = TRUE)$se.fit
+ggplot(gutdata, aes(x = reorder(region, predict(mod2, level = 0), mean))) + 
+  geom_errorbar(aes(ymin = predict(mod2, level = 0) - 
+                    predict(mod2, level = 0, se.fit = TRUE)$se.fit,
+                  ymax = predict(mod2, level = 0) + 
+                    predict(mod2, level = 0, se.fit = TRUE)$se.fit
                   )) +
-  geom_point(aes(y = predict(mod5, level = 0))) +
+  geom_point(aes(y = predict(mod2, level = 0))) +
   labs(y = '# MPs in Gut', x = 'FAO Region', size = 'Number of Studies') +
   coord_flip() +
   theme_classic() + 
@@ -607,7 +629,7 @@ png(
   res = 600
 )
 
-ggplot(allo2, aes(x=TL , y=gutconc)) +
+ggplot(gut.conc, aes(x=TL , y=gutconc)) +
   geom_jitter(aes(size=N), alpha = 5/10, shape = 21) + 
   xlab("") +
   ylab("# MPs in Gut per Gram Body Weight") +
