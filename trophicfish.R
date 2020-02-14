@@ -169,14 +169,14 @@ plot(log(Mpsgut + 1) ~ TL, data = gutdata) # variance doesn't look too bad
 
 ## Need to account for freshwater vs. marine, region, and sample size
 
-mod1 <- glmmTMB(Mpsgut ~ TL*study.habitat + (1 | region), 
+mod1 <- glmmTMB(Mpsgut ~ TL*study.habitat + (TL | region), 
                 weights = N, data = gutdata)
 summary(mod1)
 plot(resid(mod1, type = 'pearson') ~ fitted(mod1))  ## variance is a bit weird
 
 # try log transforming Mpsgut
 
-mod2 <- glmmTMB(log(Mpsgut + 1) ~ TL*study.habitat + (1 | region), 
+mod2 <- glmmTMB(log(Mpsgut + 1) ~ TL*study.habitat + (TL | region), 
                 weights = N, data = gutdata)
 summary(mod2)
 plot(resid(mod2, type = 'pearson') ~ fitted(mod2)) 
@@ -185,14 +185,6 @@ plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$study.habitat)
 AICc(mod1, mod2) # way better model fit, variance doesn't look too bad
 
 ## Plot model predictions
-
-TL <- subset(gutdata, TL != 'NA')$TL
-study.habitat <- subset(gutdata, TL != 'NA')$study.habitat
-region <- rep(0, 
-              times = length(subset(gutdata,TL != 'NA')$TL))
-N <- subset(gutdata, TL != 'NA')$N
-
-newdata1 <- data.frame(TL, study.habitat, region, N)
 
 prediction <- exp(predict(mod2)-1)
 upper <- exp(predict(mod2) - 
@@ -203,11 +195,13 @@ lower <- exp(predict(mod2) +
 png('Gut Content Plot.png', width = 30, height = 15, units = 'cm', res = 300)
 
 ggplot(subset(gutdata, TL != 'NA')) +
-  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = region), 
-              alpha = 0.3) +
-  geom_line(aes(x = TL, y = prediction, colour = region)) +
+  geom_line(aes(x = TL, y = prediction, colour = region),
+            size = 1.5) +
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = region, 
+                  colour = region), 
+              alpha = 0.5) +
   geom_jitter(aes(x = TL, y = Mpsgut, size = N, colour = region),
-              alpha = 0.5, shape = 1) +
+              shape = 1) +
   facet_grid(. ~ study.habitat) +
   labs(x = 'Trophic Level',
        y = expression(paste(
@@ -217,8 +211,11 @@ ggplot(subset(gutdata, TL != 'NA')) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
   scale_y_continuous(breaks = seq(from = 0, to = 30, by = 5), 
                      trans = 'log1p') +
-  scale_fill_discrete(labels = FALSE) +
   theme_few() +
+  scale_color_viridis_d(option = 'C') +
+  scale_fill_viridis_d(option = 'C') +
+  guides(color = FALSE, fill = FALSE) +
+  
   theme(
     text = element_text(size = 14),
     axis.text.x = element_text(size = 14),
