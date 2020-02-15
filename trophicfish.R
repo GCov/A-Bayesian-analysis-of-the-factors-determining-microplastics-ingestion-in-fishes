@@ -91,6 +91,17 @@ trophicfish2$area <- mapvalues(
   )
 )
 
+trophicfish2$polymer.ID <- 
+  mapvalues(trophicfish2$polymer.ID, 
+            from = c('yes','no'),
+            to = c('Polymer ID Method Used',
+                   'Polymer ID Method Not Used'))
+trophicfish2$blanks <- 
+  mapvalues(trophicfish2$blanks,
+            from = c('yes', 'no'),
+            to = c('Blanks Used',
+                   'Blanks Not Used'))
+
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
@@ -213,11 +224,11 @@ plot(resid(mod2.3, type = 'pearson') ~ fitted(mod2.3))
 
 ## Plot model predictions
 
-prediction <- exp(predict(mod2.3)-1)
+prediction <- exp(predict(mod2.3))-1
 upper <- exp(predict(mod2.3) - 
-               (2*predict(mod2.3, se.fit = TRUE)$se.fit) - 1)
+               (2*predict(mod2.3, se.fit = TRUE)$se.fit)) - 1
 lower <- exp(predict(mod2.3) + 
-               (2*predict(mod2.3, se.fit = TRUE)$se.fit) - 1)
+               (2*predict(mod2.3, se.fit = TRUE)$se.fit)) - 1
 
 col1 <- qualitative_hcl(18, palette = 'Dark3')
 
@@ -229,20 +240,20 @@ ggplot(subset(gutdata, TL != 'NA')) +
   geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = region, 
                   colour = region), 
               alpha = 0.3) +
-  geom_jitter(aes(x = TL, y = Mpsgut, size = N, colour = region),
-              shape = 1) +
+  geom_point(aes(x = TL, y = Mpsgut, size = N, colour = region),
+             shape = 1) +
   facet_grid(. ~ area, scales = 'free_x') +
   labs(x = 'Trophic Level',
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        colour = 'FAO Area',
-       fill = 'Region',
+       fill = 'FAO Area',
        size = 'Sample Size') +
   coord_cartesian(xlim = c(2,4.7), ylim = c(0,30)) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
-  scale_y_continuous(breaks = seq(from = 0, to = 30, by = 5), 
-                     trans = 'log1p') +
+  scale_y_continuous(breaks = c(0,1,2,3,4,5,10,15,20,25,30), 
+                     trans = 'log1p', expand = c(0,0)) +
   theme_few() +
   scale_color_manual(values = col1) +
   scale_fill_manual(values = col1) +
@@ -284,7 +295,7 @@ ing.mod1 <- glmmTMB(
   family = binomial(link = 'logit')
 )
 
-summary(ing.mod1)  ## TL not sign., p = 0.6
+summary(ing.mod1)  ## TL not sig., p = 0.6
 plot(resid(ing.mod1, type = 'pearson') ~ 
        fitted(ing.mod1))  # variance looks pretty homogenous
 plot(resid(ing.mod1, type = 'pearson') ~ 
@@ -334,175 +345,197 @@ dev.off()
 
 allo <- subset(gutdata, total.length != 'NA' & W != 'NA')
 
-length(allo$total.length)  # 146 data point remaining
+length(allo$total.length)  # 312 data point remaining
 
-allo$cen.W <- (mean(allo$W) - allo$W)/sd(allo$W)
-allo$cen.tot.l <- (mean(allo$total.length) - allo$total.length)/sd(allo$total.length)
+allo.mod1 <- 
+  glmmTMB(log(Mpsgut + 1) ~ total.length + (total.length | region), 
+          weights = N, data = allo)
+summary(allo.mod1)
+plot(resid(allo.mod1, type = 'pearson') ~ fitted(allo.mod1))  # not too bad
+plot(resid(allo.mod1, type = 'pearson') ~ allo$total.length)
+# variance appears to decrease with increasing total length
 
+## try putting total length on a log scale
 
-mod8 <- lme(
-  log(Mpsgut + 1) ~ cen.W + cen.tot.l,
-  random = ~ 1 | study,
-  weights = varPower(form =  ~ N),
-  data = allo,
-  method = "REML"
-)
+allo.mod2 <- 
+  glmmTMB(log(Mpsgut + 1) ~ log(total.length) + (log(total.length) | region), 
+          weights = N, data = allo)
 
-summary(mod8)
-plot(resid(mod8) ~ fitted(mod8))  # variance does not look homogenous
+plot(resid(allo.mod2, type = 'pearson') ~ fitted(allo.mod1))  # not too bad
+plot(resid(allo.mod2, type = 'pearson') ~ log(allo$total.length))  # better
 
-## try without variance structure
+AICc(allo.mod1, allo.mod2)  # allo.mod2 is a slightly better fit
 
-mod9 <- lme(
-  log(Mpsgut + 1) ~ cen.W + cen.tot.l,
-  random = ~ 1 | study,
-  data = allo,
-  method = "REML"
-)
+summary(allo.mod2)  # total length not sig., p = 0.5
 
-plot(resid(mod9) ~ fitted(mod9))  # doesn't look much better
+## Plot model predictions
 
-AICc(mod8, mod9)  # fit is a little better withvariance structure
+allo.prediction <- exp(predict(allo.mod2, type = 'response')) - 1
+allo.upper <- exp(predict(allo.mod2, type = 'response') + 
+                    (2*predict(allo.mod2, type = 'response', 
+                               se.fit = TRUE)$se.fit)) - 1
+allo.lower <- exp(predict(allo.mod2, type = 'response') - 
+                    (2*predict(allo.mod2, type = 'response', 
+                               se.fit = TRUE)$se.fit)) - 1
 
-# figure out what is driving the increasing variance
+png('Allometric Gut Concentration Plot.png', width = 40, height = 20, 
+    units = 'cm', res = 300)
 
-plot(resid(mod8) ~ allo$cen.W)
-plot(resid(mod8) ~ allo$cen.tot.l)  # looks like it's total length and weight
+ggplot(allo) +
+  geom_line(aes(x = log(total.length), y = allo.prediction, colour = region),
+            size = 1, alpha = 0.8) +
+  geom_ribbon(aes(x = log(total.length), ymin = allo.lower, ymax = allo.upper, fill = region, 
+                  colour = region), 
+              alpha = 0.3) +
+  geom_point(aes(x = log(total.length), y = Mpsgut, size = N, colour = region),
+              shape = 1) +
+  facet_grid(. ~ area, scales = 'free_x') +
+  labs(x = 'ln(Total Length) (cm)',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')')),
+       colour = 'FAO Area',
+       fill = 'FAO Area',
+       size = 'Sample Size') +
+  coord_cartesian(ylim = c(0,30)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 30, by = 5),
+                     expand = c(0,0), trans = 'log1p') +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12)
+  )
 
-# try log-transformaing total length and total width before centering and scaling
-
-allo$cen.log.W <- (mean(log(allo$W)) - log(allo$W)) / sd(log(allo$W))
-allo$cen.log.tot.l <- (mean(log(allo$total.length)) -
-                         log(allo$total.length)) /
-  sd(log(allo$total.length))
-
-
-mod10 <- lme(log(Mpsgut+1) ~ cen.log.W + cen.log.tot.l, random = ~1|study, 
-          weights = varPower(form =~ N), 
-          data = allo, method = "REML")
-
-plot(resid(mod10) ~ fitted(mod10))  # looks better
-
-AICc(mod8, mod10)  # slightly better AICc value
-
-plot(resid(mod10) ~ allo$cen.log.tot.l)
-plot(resid(mod10) ~ allo$cen.log.W)  # way better
-
-drop1(mod10)
-
-mod11 <- lme(log(Mpsgut+1) ~ cen.log.W + cen.log.tot.l + region, random = ~1|study, 
-             weights = varPower(form =~ N), 
-             data = allo, method = "ML")
-
-drop1(mod11)
-
-mod12 <- update(mod11, ~ . -cen.log.tot.l)
-
-AICc(mod11, mod12)
-
-drop1(mod12)  # can remove the effect of region
-
-mod13 <- update(mod12, ~. -region)
-
-AICc(mod12, mod13)
-
-summary(mod13)
-
-plot(exp(predict(mod13, type = 'response')) ~ log(allo$W))
-
-## number of MPs in gut appear to increase a bit with increasing weight
-## but not a whole lot
+dev.off()
 
 
 ## Does ingestion rate increase with body size?
 
 allo2 <- subset(ingestion, total.length != 'NA' & W != 'NA')
 
-length(allo2$total.length)  # 130 data point remaining
+length(allo2$total.length)  # 215 data point remaining
 
-allo2$cen.log.W <- (mean(log(allo2$W)) - log(allo2$W)) / sd(log(allo2$W))
-allo2$cen.log.tot.l <- (mean(log(allo2$total.length)) -
-                         log(allo2$total.length)) /
-  sd(log(allo2$total.length))
+ingest.allo.mod1 <- 
+  glmmTMB(IR ~ log(total.length) + (log(total.length) | region),
+          family = binomial(), data = allo2)
+plot(resid(ingest.allo.mod1, type = 'pearson') ~
+       fitted(ingest.allo.mod1))
+summary(ingest.allo.mod1)  # p = 0.2
 
-mod14 <- glm(IR ~ cen.log.tot.l + cen.log.W + region,
-            weights = N,
-            data = allo2, 
-            family = binomial(link = 'logit'))
-summary(mod14)
+## Plot model predictions
 
-plot(resid(mod14) ~ fitted(mod14))
+ingest.allo.prediction <- predict(ingest.allo.mod1, type = 'response')
+ingest.allo.upper <- ingest.allo.prediction + 
+  (2*predict(ingest.allo.mod1, type = 'response', se.fit = TRUE)$se.fit)
+ingest.allo.lower <- ingest.allo.prediction - 
+  (2*predict(ingest.allo.mod1, type = 'response', se.fit = TRUE)$se.fit)
 
-drop1(mod14)  ## best fitting model, can't remove anything
+png('Allometric Ingestion Rate Plot.png', width = 40, height = 20, 
+    units = 'cm', res = 300)
 
-plot(predict(mod14, type = 'response') ~ allo2$cen.log.tot.l)
-plot(predict(mod14, type = 'response') ~ allo2$cen.log.W)
-plot(predict(mod14, type = 'response') ~ allo2$region)
+ggplot(allo2) +
+  geom_line(aes(x = log(total.length), y = ingest.allo.prediction, 
+                colour = region),
+            size = 1, alpha = 0.8) +
+  geom_ribbon(aes(x = log(total.length), 
+                  ymin = ingest.allo.lower, 
+                  ymax = ingest.allo.upper, 
+                  fill = region, 
+                  colour = region), 
+              alpha = 0.3) +
+  geom_jitter(aes(x = log(total.length), y = IR, size = N, colour = region),
+              shape = 1) +
+  facet_grid(. ~ area, scales = 'free_x') +
+  labs(x = 'ln(Total Length) (cm)',
+       y = 'Ingestion Rate',
+       colour = 'FAO Area',
+       fill = 'FAO Area',
+       size = 'Sample Size') +
+  coord_cartesian(ylim = c(0,1)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.1),
+                     expand = c(0,0)) +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12)
+  )
+
+dev.off()
 
 
 ## Is there an effect of methodology on reported MP gut numbers?
 
-mod15 <- lmer(log(Mpsgut + 1) ~ min.size + polymer.ID + blanks + 
-                region + (1 | study),
-              data = gutdata)
+methods <- subset(gutdata, 
+                  min.size != 'NA' & polymer.ID != 'NA' &
+                    blanks != 'NA')
 
-plot(resid(mod15) ~ fitted(mod15))
+meth.mod1 <- 
+  glmmTMB(log(Mpsgut + 1) ~ min.size + polymer.ID + blanks + 
+            (polymer.ID | region), weights = N, data = methods)
 
-drop1(mod15)  # remove region
+# try without varying intercept
+meth.mod2 <- 
+  glmmTMB(log(Mpsgut + 1) ~ min.size + polymer.ID + blanks + 
+            (1 | region), weights = N, data = methods)
 
-mod16 <- update(mod15, ~ . -region)
+AICc(meth.mod1, meth.mod2) # better fit with varying intercept
 
-AICc(mod15, mod16)
+plot(resid(meth.mod1, type = 'pearson') ~ fitted(meth.mod1))
 
-drop1(mod16)  # can remove polymer.ID
+summary(meth.mod1)  # all terms are significant
 
-mod17 <- update(mod16, ~ . -polymer.ID)
-AICc(mod16, mod17)
+## Plot model predictions
 
-drop1(mod17)  # can remove blanks
+meth.prediction <- exp(predict(meth.mod1, type = 'response')) - 1
+meth.upper <- exp(predict(meth.mod1, type = 'response') + 
+                    (2*predict(meth.mod1, type = 'response', 
+                               se.fit = TRUE)$se.fit)) - 1
+meth.lower <- exp(predict(meth.mod1, type = 'response') - 
+                    (2*predict(meth.mod1, type = 'response', 
+                               se.fit = TRUE)$se.fit)) - 1
 
-mod18 <- update(mod17, ~ . -blanks)
+png('Methods Plot.png', width = 40, height = 20, 
+    units = 'cm', res = 300)
 
-AICc(mod17, mod18)
-
-drop1(mod18)  # stop here
-
-summary(mod18)
-
-plot(resid(mod18) ~ fitted(mod18))
-
-plot(resid(mod18) ~ gutdata$min.size)
-
-plot(exp(predict(mod18, type = 'response'))-1 ~ gutdata$min.size)
-
-plot(min.size ~ region, data = gutdata)
-
-png(
-  filename = "LOD Plot.png",
-  width = 17,
-  height = 17,
-  units = "cm",
-  pointsize = 7,
-  res = 600
-)
-
-ggplot(gutdata) +
-  geom_jitter(aes(x = reorder(region, Mpsgut, mean),
-                 y = Mpsgut,
-                 fill = min.size),
-             colour = 'black', size = 1.5, shape = 21, alpha = 0.5) +
-  labs(y = '# MPs in Gut', x = 'FAO Region', fill = 'Limit of Detection') +
-  scale_y_continuous(trans = 'log1p') +
-  coord_flip() +
-  theme_classic() + 
-  scale_colour_distiller(type = 'div', 
-                         palette = 'RdYlBu', 
-                         aesthetics = 'fill') +
-  theme(text = element_text(size=7), 
-        axis.text.x = element_text(size = 7),
-        axis.text.y = element_text(size = 7))
-
-dev.off()
+ggplot(methods) +
+  geom_line(aes(x = min.size, y = meth.prediction, colour = region),
+            size = 1, alpha = 0.8) +
+  geom_ribbon(aes(x = min.size, ymin = meth.lower, ymax = meth.upper, 
+                  fill = region, colour = region), 
+              alpha = 0.3) +
+  geom_point(aes(x = min.size, y = Mpsgut, size = N, colour = region),
+             shape = 1) +
+  facet_grid(polymer.ID ~ blanks) +
+  labs(x = expression(paste('Lowest Detectible Particle Size (' ~mu*')')),
+       y = expression(paste('Microplastic Concentration (particles ' ~ 
+                              ind ^ -1 * ')')),
+       colour = 'FAO Area',
+       fill = 'FAO Area',
+       size = 'Sample Size') +
+  coord_cartesian(ylim = c(0,30)) +
+  scale_y_continuous(breaks = c(1,2,3,4,5,10,15,20,25,30),
+                     expand = c(0,0), trans = 'log1p') +
+  scale_x_continuous(breaks = c(0, 10, 50, 100, 500),
+                     trans = 'log1p') +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12)
+  )
 
 ## Try trophic level/regional model using max 100 micron LOD
 
