@@ -9,6 +9,7 @@ library(mgcv)
 library(glmmTMB)
 library(ggthemes)
 library(merTools)
+library(colorspace)
 
 trophicfish <- 
   read.csv("trophicfishdata.csv", header = TRUE)
@@ -77,6 +78,18 @@ length(unique(trophicfish2$study))  # 109 + 1 studies
 summary(trophicfish2$min.size)
 
 hist(trophicfish2$min.size)
+
+trophicfish2$area <- mapvalues(
+  trophicfish2$region,
+  from = levels(trophicfish2$region),
+  to = c(
+    rep('Atlantic Ocean', 4),
+    rep('Freshwater', 5),
+    rep('Indian Ocean', 3),
+    'Mediterrean \nand Black Sea',
+    rep('Pacific Ocean', 6)
+  )
+)
 
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
@@ -184,62 +197,65 @@ plot(resid(mod2, type = 'pearson') ~ na.omit(gutdata$TL))
 plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$study.habitat)
 AICc(mod1, mod2) # way better model fit, variance doesn't look too bad
 
+mod2.1 <- glmmTMB(log(Mpsgut + 1) ~ TL + study.habitat + (TL | region), 
+                  weights = N, data = gutdata)
+anova(mod2, mod2.1)
+## Interaction between trophic level and fresh/marine not sig., p = 0.4
+
+summary(mod2.1)  ## fresh/marine also not sig., p = 0.5
+
+## Let's simply the model and take out study.habitat
+
+mod2.3 <- glmmTMB(log(Mpsgut + 1) ~ TL  + (TL | region), 
+                    weights = N, data = gutdata)
+summary(mod2.3)  # trophic level not sig., p = 0.9
+plot(resid(mod2.3, type = 'pearson') ~ fitted(mod2.3))
+
 ## Plot model predictions
 
-prediction <- exp(predict(mod2)-1)
-upper <- exp(predict(mod2) - 
-               (2*predict(mod2, se.fit = TRUE)$se.fit) - 1)
-lower <- exp(predict(mod2) + 
-               (2*predict(mod2, se.fit = TRUE)$se.fit) - 1)
+prediction <- exp(predict(mod2.3)-1)
+upper <- exp(predict(mod2.3) - 
+               (2*predict(mod2.3, se.fit = TRUE)$se.fit) - 1)
+lower <- exp(predict(mod2.3) + 
+               (2*predict(mod2.3, se.fit = TRUE)$se.fit) - 1)
 
-png('Gut Content Plot.png', width = 30, height = 15, units = 'cm', res = 300)
+col1 <- qualitative_hcl(18, palette = 'Dark3')
+
+png('Gut Content Plot.png', width = 40, height = 20, units = 'cm', res = 300)
 
 ggplot(subset(gutdata, TL != 'NA')) +
   geom_line(aes(x = TL, y = prediction, colour = region),
-            size = 1.5) +
+            size = 1, alpha = 0.8) +
   geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = region, 
                   colour = region), 
-              alpha = 0.5) +
+              alpha = 0.3) +
   geom_jitter(aes(x = TL, y = Mpsgut, size = N, colour = region),
               shape = 1) +
-  facet_grid(. ~ study.habitat) +
+  facet_grid(. ~ area, scales = 'free_x') +
   labs(x = 'Trophic Level',
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
-       ))) +
+       )),
+       colour = 'FAO Area',
+       fill = 'Region',
+       size = 'Sample Size') +
   coord_cartesian(xlim = c(2,4.7), ylim = c(0,30)) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
   scale_y_continuous(breaks = seq(from = 0, to = 30, by = 5), 
                      trans = 'log1p') +
   theme_few() +
-  scale_color_viridis_d(option = 'C') +
-  scale_fill_viridis_d(option = 'C') +
-  guides(color = FALSE, fill = FALSE) +
-  
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
   theme(
     text = element_text(size = 14),
     axis.text.x = element_text(size = 14),
     axis.text.y = element_text(size = 14),
-    strip.text = element_text(size = 16)
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12)
   )
 
 dev.off()
 
-ggplot(gutdata, aes(x = reorder(region, predict(mod2, level = 0), mean))) + 
-  geom_errorbar(aes(ymin = predict(mod2, level = 0) - 
-                    predict(mod2, level = 0, se.fit = TRUE)$se.fit,
-                  ymax = predict(mod2, level = 0) + 
-                    predict(mod2, level = 0, se.fit = TRUE)$se.fit
-                  )) +
-  geom_point(aes(y = predict(mod2, level = 0))) +
-  labs(y = '# MPs in Gut', x = 'FAO Region', size = 'Number of Studies') +
-  coord_flip() +
-  theme_classic() + 
-  theme(text = element_text(size=7), 
-        axis.text.x = element_text(size = 7),
-        axis.text.y = element_text(size = 7))
-
-coef(mod4)
 
 ## Effect of region on ingestion rates
 ## Need to account for study FAO area
@@ -248,45 +264,71 @@ ingestion <- subset(trophicfish2, IR != "NA")
 
 summary(ingestion$IR)
 
-length(ingestion$species) # 413 data points
-length(unique(ingestion$species)) # 334 species
-length(unique(ingestion$family)) # from 128 families
-length(unique(ingestion$study)) # 56 studies
+length(ingestion$species) # 561 data points
+length(unique(ingestion$species)) # 439 species
+length(unique(ingestion$family)) # from 148 families
+length(unique(ingestion$study)) # 91 studies
 
 levels(ingestion$region)
 
 summary(ingestion$region)
-
-ingestion$region[ingestion$region == 'Northeast Atlantic'] <-
-  'Atlantic, Northeast'
 ingestion$region <- as.character(ingestion$region)
 ingestion$region <- as.factor(ingestion$region)
 
 summary(ingestion)
 
-mod7 <- glm(IR ~ TL + region + study,
-              weights = N,
-              data = ingestion, 
-              family = binomial(link = 'logit'))
-summary(mod7)  ## Model will not converge with study as a random effect
-plot(resid(mod7) ~ fitted(mod7))
+ing.mod1 <- glmmTMB(
+  IR ~ TL + (TL | region),
+  weights = N,
+  data = ingestion,
+  family = binomial(link = 'logit')
+)
 
-drop1(mod7)
+summary(ing.mod1)  ## TL not sign., p = 0.6
+plot(resid(ing.mod1, type = 'pearson') ~ 
+       fitted(ing.mod1))  # variance looks pretty homogenous
+plot(resid(ing.mod1, type = 'pearson') ~ 
+       ingestion$region) # patterns, but not too wild
+
+## Plot model predictions
+
+ing.prediction <- predict(ing.mod1, type = 'response')
+ing.upper <- ing.prediction + 
+  (2*predict(ing.mod1, type = 'response', se.fit = TRUE)$se.fit)
+ing.lower <- ing.prediction - 
+  (2*predict(ing.mod1, type = 'response', se.fit = TRUE)$se.fit)
+
+png('Ingestion Rate Plot.png', width = 40, height = 20, units = 'cm', res = 300)
 
 ggplot(ingestion) +
-  geom_point(aes(x = TL,
-                 y = IR),
-             size = 0.5) +
-  geom_line(aes(x = TL,
-                 y = predict(mod7, type = 'response', level = 0),
-                 colour = study)) +
-  labs(y = 'Ingestion Rate', x = 'Trophic Level') +
-  facet_wrap(~ region) +
-  theme_classic() + 
-  theme(text = element_text(size=7), 
-        axis.text.x = element_text(size = 7),
-        axis.text.y = element_text(size = 7),
-        legend.position = 'none')
+  geom_line(aes(x = TL, y = ing.prediction, colour = region),
+            size = 1, alpha = 0.8) +
+  geom_ribbon(aes(x = TL, ymin = ing.lower, ymax = ing.upper, fill = region, 
+                  colour = region), 
+              alpha = 0.3) +
+  geom_jitter(aes(x = TL, y = IR, size = N, colour = region),
+              shape = 1) +
+  facet_grid(. ~ area, scales = 'free_x') +
+  labs(x = 'Trophic Level',
+       y = 'Ingestion Rate',
+       colour = 'FAO Area',
+       fill = 'FAO Area',
+       size = 'Sample Size') +
+  coord_cartesian(xlim = c(2,4.7), ylim = c(0,1)) +
+  scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.1)) +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12)
+  )
+
+dev.off()
 
 ## Do microplastic numbers in the gut correlate with body size? 
 
