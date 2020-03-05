@@ -15,6 +15,7 @@ library(sjPlot)
 model.assess <- 
   function(x) {
   plot(resid(x, type = 'pearson') ~ fitted(x, type = 'response'))
+    abline(0,0,lty=2)
   }
 
 trophicfish <- 
@@ -71,10 +72,11 @@ trophicfish2$SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
 
 
 summary(trophicfish2)
-length(trophicfish2$species) # 780 dta points
-length(trophicfish$species) # consolidated from 872 data point
-length(unique(trophicfish2$species)) # ~607 species
+length(trophicfish2$species) # 777 dta points
+length(trophicfish$species) # consolidated from 869 data point
+length(unique(trophicfish2$species)) # ~605 species
 length(unique(trophicfish2$family)) # from 165 families
+sum(na.omit(trophicfish2$N))  # 24,714 individuals  
 
 trophicfish2$study <- with(trophicfish2, paste0(author, year))
 trophicfish2$study <- as.factor(trophicfish2$study)
@@ -141,9 +143,9 @@ levels(trophicfish2$feeding.habit)
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
-length(gutdata$species) # 654 data points
-length(unique(gutdata$species)) # 521 species
-length(unique(gutdata$family)) # from 152 families
+length(gutdata$species) # 651 data points
+length(unique(gutdata$species)) # 519 species
+length(unique(gutdata$family)) # from 151 families
 length(unique(gutdata$study)) # from 91 + 1 studies
 
 summary(gutdata)
@@ -227,7 +229,7 @@ lower <- exp(predict(mod2.3) +
 
 col1 <- qualitative_hcl(18, palette = 'Dark3')
 
-png('Gut Content Plot.png', width = 33, height = 19, units = 'cm', res = 300)
+png('Gut Content Plot.png', width = 33, height = 14, units = 'cm', res = 300)
 
 ggplot(subset(gutdata, TL != 'NA')) +
   geom_line(aes(x = TL, y = prediction, colour = region),
@@ -257,7 +259,9 @@ ggplot(subset(gutdata, TL != 'NA')) +
     axis.text.x = element_text(size = 14),
     axis.text.y = element_text(size = 14),
     strip.text = element_text(size = 16),
-    legend.text = element_text(size = 12)
+    legend.text = element_text(size = 12),
+    legend.box = 'vertical',
+    legend.position = 'bottom'
   )
 
 dev.off()
@@ -270,7 +274,7 @@ ingestion <- subset(trophicfish2, IR != "NA")
 
 summary(ingestion$IR)
 
-length(ingestion$species) # 561 data points
+length(ingestion$species) # 560 data points
 length(unique(ingestion$species)) # 439 species
 length(unique(ingestion$family)) # from 148 families
 length(unique(ingestion$study)) # 91 studies
@@ -338,9 +342,11 @@ dev.off()
 
 ## Do microplastic numbers in the gut correlate with body size? 
 
-allo <- subset(gutdata, total.length != 'NA' & W != 'NA')
+allo <- subset(gutdata, total.length != 'NA')
 
-length(allo$total.length)  # 312 data point remaining
+length(allo$total.length)  # 342 data point remaining
+length(unique(allo$study))  # 52 studies
+length(unique(allo$species))  # 300 species
 
 allo.mod1 <- 
   glmmTMB(log(Mpsgut + 1) ~ total.length + (total.length | region), 
@@ -410,15 +416,20 @@ dev.off()
 
 ## Does ingestion rate increase with body size?
 
-allo2 <- subset(ingestion, total.length != 'NA' & W != 'NA')
+allo2 <- subset(ingestion, total.length != 'NA')
 
-length(allo2$total.length)  # 215 data point remaining
+allo2$species <- as.character(allo2$species)
+allo2$species <- as.factor(allo2$species)
+
+length(allo2$total.length)  # 247 data point remaining
+length(unique(allo2$study))  #45 studies
+length(unique(allo2$species))  #214 species
 
 ingest.allo.mod1 <- 
   glmmTMB(IR ~ log(total.length) + (log(total.length) | region),
-          family = binomial(), data = allo2)
+          family = binomial(), weights = N, data = allo2)
 model.assess(ingest.allo.mod1)
-summary(ingest.allo.mod1)  # p = 0.2
+summary(ingest.allo.mod1)  # p = 0.722
 
 ## Plot model predictions
 
@@ -428,7 +439,7 @@ ingest.allo.upper <- ingest.allo.prediction +
 ingest.allo.lower <- ingest.allo.prediction - 
   (2*predict(ingest.allo.mod1, type = 'response', se.fit = TRUE)$se.fit)
 
-png('Allometric Ingestion Rate Plot.png', width = 33, height = 19, 
+png('Allometric Ingestion Rate Plot.png', width = 33, height = 13, 
     units = 'cm', res = 300)
 
 ggplot(allo2) +
@@ -443,14 +454,14 @@ ggplot(allo2) +
               alpha = 0.3, linetype = 'dashed') +
   geom_jitter(aes(x = log(total.length), y = IR, size = N, colour = region),
               shape = 1) +
-  facet_grid(. ~ area, scales = 'free_x') +
+  facet_grid(. ~ area) +
   labs(x = 'ln(Total Length) (cm)',
        y = 'Ingestion Rate',
        colour = 'FAO Area',
        fill = 'FAO Area',
        size = 'Sample Size') +
   coord_cartesian(ylim = c(0,1)) +
-  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.1),
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.2),
                      expand = c(0,0)) +
   theme_few() +
   scale_color_manual(values = col1) +
@@ -460,7 +471,9 @@ ggplot(allo2) +
     axis.text.x = element_text(size = 14),
     axis.text.y = element_text(size = 14),
     strip.text = element_text(size = 16),
-    legend.text = element_text(size = 12)
+    legend.text = element_text(size = 12),
+    legend.box = 'vertical',
+    legend.position = 'bottom'
   )
 
 dev.off()
@@ -552,10 +565,6 @@ meth.coef
 plot(coeff ~ factors, data = meth.coef, ylim = c(-2,2))
 abline(0,0, lty = 2)
 
-coefplot(lmer(log(Mpsgut + 1) ~ 
-                min.size + polymer.ID + (polymer.ID | region),
-              weights = N, data = methods))
-
 ## Try trophic level/regional model using max 100 micron LOD
 
 gutdata100 <- subset(gutdata, min.size <= 100)
@@ -624,12 +633,12 @@ dev.off()
 gutdata$gutconc <- with(gutdata, Mpsgut/W)
 summary(gutdata$gutconc)
 
-gut.conc <- subset(gutdata, gutconc != 'NA')
+gut.conc <- subset(gutdata, gutconc != 'NA' & TL != 'NA')
 summary(gut.conc)
 
-length(gut.conc$species) # 428 data points
-length(unique(gut.conc$species)) # ~361 species
-length(unique(gut.conc$family)) # from 111 families
+length(gut.conc$species) # 424 data points
+length(unique(gut.conc$species)) # ~357 species
+length(unique(gut.conc$family)) # from 110 families
 length(unique(gut.conc$study)) # 55 studies
 length(unique(gut.conc$region)) ## 18 regions
 
@@ -649,11 +658,75 @@ mag.mod3 <-
   glmmTMB(log(gutconc + 1) ~ log(TL) + (log(TL) | region), weights = N, 
           data = gut.conc)
 
-model.assess(mag.mod3)  # didn't help
+model.assess(mag.mod3)
 
-summary(mag.mod2)
+AICc(mag.mod1, mag.mod2, mag.mod3)  # best as log-log
 
-## Try including effects of habitat and feeding strategy
+# try removing the random effect
+
+mag.mod4 <- glmmTMB(log(gutconc + 1) ~ log(TL), weights = N, data = gut.conc)
+
+model.assess(mag.mod4)
+
+AICc(mag.mod3, mag.mod4)  # better fit with RE
+
+## what's driving the variance pattern?
+
+plot(resid(mag.mod2, type = 'pearson') ~ log(gut.conc$TL))
+plot(resid(mag.mod2, type = 'pearson') ~ na.omit(gut.conc$region))
+
+summary(mag.mod2)  # p = 0.158
+
+## Plot model predictions
+
+mag.prediction <- exp(predict(mag.mod2))-1
+mag.lower <- exp(predict(mag.mod2) - 
+                   (2*predict(mag.mod2, se.fit = TRUE)$se.fit)) - 1
+mag.upper <- exp(predict(mag.mod2) + 
+                   (2*predict(mag.mod2, se.fit = TRUE)$se.fit)) - 1
+
+png('Bioaccumulation Plot.png', width = 33, height = 14, 
+    units = 'cm', res = 300)
+
+ggplot(gut.conc) +
+  geom_line(aes(x = TL, y = mag.prediction, colour = region),
+            size = 1, alpha = 0.8) +
+  geom_ribbon(aes(x = TL, ymin = mag.lower, ymax = mag.upper, fill = region, 
+                  colour = region), 
+              alpha = 0.3, linetype = 'dashed') +
+  geom_point(aes(x = TL, y = gutconc, size = N, colour = region),
+             shape = 1) +
+  facet_grid(. ~ area, scales = 'free_x') +
+  labs(x = 'Trophic Level',
+       y = expression(paste(
+         'Microplastic Concentration (particles '*g^-1*')'
+       )),
+       colour = 'FAO Area',
+       fill = 'FAO Area',
+       size = 'Sample Size') +
+  coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
+  scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
+  scale_y_continuous(breaks = c(0,1,5,10,20,30), 
+                     trans = 'log1p', expand = c(0,0)) +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12),
+    legend.box = 'vertical',
+    legend.position = 'bottom'
+  )
+
+dev.off()
+
+
+  -------------------------
+
+## Try including all variable from the start
 
 summary(gutdata$environment)
 summary(gutdata$climate)
@@ -766,6 +839,7 @@ exclude.fib.test <-
      weights = N, data = gutdata2)
 anova(all.mod5, exclude.fib.test)  # p = 0.023
 
+coefplot(all.mod5)
 
 ## Plot model predictions
 
@@ -777,27 +851,37 @@ overall.lower <- exp(predict(all.mod5, type = 'response') -
                     (2*predict(all.mod5, type = 'response', 
                                se.fit = TRUE)$se.fit)) - 1
 
-png('Multi-predictor Plot.png', width = 27, height = 18, 
+
+## Plot according to lower limit of detection
+
+png('Lower Limit Plot.png', width = 30, height = 19, 
     units = 'cm', res = 300)
 
 ggplot(gutdata2) +
-  geom_violin(aes(x = region, y = overall.prediction,
-                  linetype = exclude.fib),
-              size = 1, alpha = 0.8) +
-  geom_ribbon(aes(x = region, ymin = overall.lower, ymax = overall.upper, 
-                  linetype = exclude.fib), 
-              alpha = 0.3) +
-  geom_point(aes(x = region, y = Mpsgut, size = N, colour = min.size),
-             shape = 1) +
-  facet_grid(float.meth ~ .) +
-  labs(x = 'Region',
-       y = expression(paste('Microplastic Concentration (particles ' ~ 
-                              ind ^ -1 * ')')),
-       colour = 'Limite of Detection',
-       size = 'Sample Size') +
-  coord_cartesian(ylim = c(0,40)) +
-  scale_y_continuous(breaks = c(0,1,5,10,20,30),
-                     expand = c(0,0), trans = 'log1p') +
+  geom_point(aes(
+    x = reorder(region, Mpsgut, mean),
+    y = Mpsgut,
+    size = N,
+    colour = min.size
+  ),
+  alpha = 0.5) +
+  labs(
+    x = 'Region',
+    y = expression(paste(
+      'Microplastic Concentration (particles ' ~
+        ind ^ -1 * ')'
+    )),
+    colour = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
+    size = 'Sample Size'
+  ) +
+  coord_cartesian(ylim = c(0, 35)) +
+  scale_y_continuous(
+    breaks = c(0, 1, 5, 10, 20, 30),
+    expand = c(0, 0),
+    trans = 'log1p'
+  ) +
+  coord_flip() +
+  scale_colour_continuous_sequential(palette = 'Red-Blue') +
   theme_few() +
   theme(
     text = element_text(size = 14),
