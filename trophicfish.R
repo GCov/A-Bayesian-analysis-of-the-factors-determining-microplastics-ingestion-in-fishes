@@ -4,13 +4,9 @@ library(nlme)
 library(MuMIn)
 library(lme4)
 library(cowplot)
-library(car)
-library(mgcv)
 library(glmmTMB)
 library(ggthemes)
-library(merTools)
 library(colorspace)
-library(sjPlot)
 
 model.assess <- 
   function(x) {
@@ -192,7 +188,6 @@ plot(log(Mpsgut + 1) ~ TL, data = gutdata) # variance doesn't look too bad
 
 mod1 <- glmmTMB(Mpsgut ~ TL*study.habitat + (TL | region), 
                 weights = N, data = gutdata)
-summary(mod1)
 model.assess(mod1)  ## variance is a bit weird
 
 # try log transforming Mpsgut
@@ -704,6 +699,37 @@ ggplot(gut.conc) +
        colour = 'FAO Area',
        fill = 'FAO Area',
        size = 'Sample Size') +
+  coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
+  scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
+  scale_y_continuous(breaks = c(0,1,5,10,20,30), 
+                     trans = 'log1p', expand = c(0,0)) +
+  theme_few() +
+  scale_color_manual(values = col1) +
+  scale_fill_manual(values = col1) +
+  theme(
+    text = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 16),
+    legend.text = element_text(size = 12),
+    legend.box = 'vertical',
+    legend.position = 'bottom'
+  )
+
+dev.off()
+
+png('Bioaccumulation Plot Combined.png', width = 15, height = 13, 
+    units = 'cm', res = 300)
+
+ggplot(gut.conc) +
+  geom_line(aes(x = TL, y = mag.prediction, group = region),
+            size = 1, alpha = 0.8) +
+  geom_point(aes(x = TL, y = gutconc, size = N),
+             shape = 1) +
+  labs(x = 'Trophic Level',
+       y = expression(paste(
+         'Microplastic Concentration (particles '*g^-1*')'
+       )), size = 'Sample Size') +
   coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(breaks = c(0,1,5,10,20,30), 
