@@ -22,7 +22,7 @@ theme1 <-
     text = element_text(size = 7),
     axis.text = element_text(size = 7),
     strip.background = element_blank(),
-    strip.text = element_text(size = 7),
+    strip.text = element_text(size = 8),
     legend.text = element_text(size = 7),
     panel.grid = element_blank()
   )
@@ -81,7 +81,7 @@ trophicfish2$SDMPsgut <- trophicfish2$SDMPsgutprod/trophicfish2$N
 
 
 summary(trophicfish2)
-length(trophicfish2$species) # 873 dta points
+length(trophicfish2$species) # 873 data points
 length(trophicfish$species) # consolidated from 977 data point
 length(unique(trophicfish2$species)) # ~647 species
 length(unique(trophicfish2$family)) # from 171 families
@@ -90,8 +90,7 @@ sum(na.omit(trophicfish2$N))  # 30,543 individuals
 trophicfish2$study <- with(trophicfish2, paste0(author, year))
 trophicfish2$study <- as.factor(trophicfish2$study)
 head(trophicfish2)
-length(unique(trophicfish2$study))  # 109 + 1 studies
-sum(na.omit(trophicfish2$N))
+length(unique(trophicfish2$study))  # 124 + 1 studies
 
 summary(trophicfish2$min.size)
 
@@ -107,6 +106,8 @@ trophicfish2$blanks <-
             from = c('yes', 'no'),
             to = c('Blanks Used',
                    'Blanks Not Used'))
+
+trophicfish2$feeding.habit <- as.factor(trophicfish2$feeding.habit)
 
 levels(trophicfish2$feeding.habit)
 
@@ -140,6 +141,9 @@ trophicfish2$feeding.habit <- factor(
 )
 
 levels(trophicfish2$feeding.habit)
+
+trophicfish2$study.habitat <- as.factor(trophicfish2$study.habitat)
+trophicfish2$environment <- as.factor(trophicfish2$environment)
 
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
@@ -180,36 +184,87 @@ ggplot(gutdata, aes(x=climate , y=Mpsgut)) +
 
 hist(gutdata$Mpsgut)
 
-## Does # MPs in the gut correlate with trophic level?
+## Trophic modeling
 
-## Need to account for freshwater vs. marine, region, and sample size
+overdisp_fun <- function(model) {
+  rdf <- df.residual(model)
+  rp <- residuals(model,type="pearson")
+  Pearson.chisq <- sum(rp^2)
+  prat <- Pearson.chisq/rdf
+  pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
+  c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
+}
 
-gutdata <- subset(gutdata, !is.na(TL) & !is.na(Mpsgut))
+## Need to account for environment, region, and sample size
 
-mod1 <- glmmTMB(Mpsgut ~ TL*study.habitat + (TL | region), 
-                weights = N, data = gutdata)
+gutdata <- subset(gutdata, !is.na(TL) & !is.na(Mpsgut))  # remove NAs
+
+gutdata$Mpsgut <- ceiling(gutdata$Mpsgut)  # round up to the nearest integer
+
+mod1 <-
+  glmmTMB(
+    Mpsgut ~ TL + (TL | region / study),
+    weights = N,
+    family = poisson(link = 'log'),
+    data = gutdata
+  )
+
 model.assess(mod1)  ## variance is a bit weird
+overdisp_fun(mod1)  # model is over-dispersed, try NB
 
-# try log transforming Mpsgut
+mod2 <-
+  glmmTMB(
+    Mpsgut ~ TL + environment + (TL | region / study),
+    weights = N,
+    family = poisson(link = 'log'),
+    ziformula = ~ environment,
+    data = gutdata
+  )
 
-mod2 <- glmmTMB(log(Mpsgut + 1) ~ TL * study.habitat + (TL | region),
-                weights = N,
-                data = gutdata)
+plot(resid(mod2) ~ fitted(mod2))
+
+AICc(mod1, mod2)
+
+# try Gamma distribution
+
+gutdata$Mpsgut[gutdata$Mpsgut == 0] <- 1e-6  # add slight 'noise' to zeros
+
+mod2 <-
+  glmmTMB(
+    Mpsgut ~ TL * region + environment + (1 | study),
+    weights = N,
+    family = Gamma(),
+    data = gutdata
+  )
+
 summary(mod2)
 model.assess(mod2)  # much better
 plot(resid(mod2, type = 'pearson') ~ gutdata$TL)
-plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$study.habitat)
+plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$environment)
 AICc(mod1, mod2) # way better model fit, variance doesn't look too bad
 
-mod2.1 <- lmer(log(Mpsgut + 1) ~ TL + study.habitat + (TL | region), 
+mod2.1 <- glmmTMB(log(Mpsgut + 1) ~ environment + (TL | region), 
                   weights = N, data = gutdata)
-anova(mod2, mod2.1)
-## Interaction between trophic level and fresh/marine not sig., p = 0.4
+anova(mod2, mod2.1)  # TL not significant, p = 0.575
+
+mod2.2 <- glmmTMB(log(Mpsgut + 1) ~ TL + (TL | region),
+                  weights = N,
+                  data = gutdata)
+
+anova(mod2, mod2.2)  # environment significant, p < 0.001
+
+# What happens if LOD is accounted for?
+
+mod3 <- glmmTMB(log(Mpsgut + 1) ~ TL  + environment + min.size + (TL | region),
+                weights = N,
+                data = gutdata)
+
+AICc(mod2, mod3)  # explains more variance with LOD included
 
 ## Plot model predictions
 
 ilink1 <- family(mod2)$linkinv
-prediction1 <- predict(mod2, type = 'link', re.form = NA, se.fit = TRUE)
+prediction1 <- predict(mod2, re.form = NA, se.fit = TRUE)
 
 gutdata$predict <- exp(ilink1(prediction1$fit)) - 1
 gutdata$upper <- exp(ilink1(prediction1$fit +
@@ -217,16 +272,15 @@ gutdata$upper <- exp(ilink1(prediction1$fit +
 gutdata$lower <- exp(ilink1(prediction1$fit -
                               (1.96 * prediction1$se.fit))) - 1
 
-png('Gut Content Plot.png', width = 16.7, height = 16, units = 'cm', res = 300)
-
-ggplot(gutdata) +
-  geom_line(aes(x = TL, y = predict),
+freshplot <-
+  ggplot(subset(gutdata, study.habitat == 'Freshwater')) +
+  geom_line(aes(x = TL, y = predict, colour = environment),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper), 
-              alpha = 0.3, fill = 'red') +
-  geom_point(aes(x = TL, y = Mpsgut, size = N),
-             shape = 1) +
-  facet_wrap(~ region, scales = 'free_x', nrow = 5, ncol = 4,
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
+              alpha = 0.3) +
+  geom_point(aes(x = TL, y = Mpsgut, colour = environment),
+             shape = 1, size = 0.75) +
+  facet_wrap(~ region, scales = 'free_x', ncol = 4,
              labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Trophic Level',
        y = expression(paste(
@@ -234,13 +288,43 @@ ggplot(gutdata) +
        )),
        size = 'Sample Size') +
   coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
+  scale_fill_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
+                    name = 'Environment') +
+  scale_colour_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
+                      name = 'Environment') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
-  scale_y_continuous(breaks = c(0,1,5,10,20,30), 
-                     trans = 'log1p', expand = c(0,0)) +
-  theme_few() +
-  scale_color_manual(values = col1) +
-  scale_fill_manual(values = col1) +
+  scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
   theme1
+
+marineplot <-
+  ggplot(subset(gutdata, study.habitat == 'Marine')) +
+  geom_line(aes(x = TL, y = predict, colour = environment),
+            size = 0.5, alpha = 0.8) +
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
+              alpha = 0.3) +
+  geom_point(aes(x = TL, y = Mpsgut, colour = environment),
+             shape = 1, size = 0.75) +
+  facet_wrap(~ region, scales = 'free_x', ncol = 4,
+             labeller = label_wrap_gen(width = 20)) +
+  labs(x = 'Trophic Level',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       )),
+       size = 'Sample Size') +
+  coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
+  scale_fill_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),
+                    name = 'Environment') +
+  scale_colour_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),
+                      name = 'Environment') +
+  scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
+  scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
+  theme1
+
+
+png('Gut Content Plot.png', width = 16.7, height = 20, units = 'cm', res = 300)
+
+plot_grid(freshplot, marineplot, labels = c('A', 'B'), rel_heights = c(1,1.9),
+          nrow = 2, align = 'v')
 
 dev.off()
 
@@ -732,133 +816,6 @@ ggplot(gut.conc) +
 
 dev.off()
 
-
-  -------------------------
-
-## Try including all variables from the start
-
-summary(gutdata$environment)
-summary(gutdata$climate)
-summary(gutdata$feeding.habit)
-summary(gutdata$float.meth)
-summary(gutdata$dig.meth)
-summary(gutdata$exclude.fib)
-summary(gutdata$N)
-
-gutdata$exclude.fib <- as.character(gutdata$exclude.fib)
-gutdata$exclude.fib <- as.factor(gutdata$exclude.fib)
-
-gutdata$exclude.fib <- mapvalues(gutdata$exclude.fib,
-                                 from = levels(gutdata$exclude.fib),
-                                 to = c('No', 'No', 'Yes'))
-
-gutdata$float.meth <- mapvalues(gutdata$float.meth,
-                                from = levels(gutdata$float.meth),
-                                to = c('None','NaCl','NaI','None','None',
-                                       'ZnCl'))
-
-summary(gutdata)
-
-gutdata2 <- subset(gutdata,
-                   feeding.habit != 'Not Listed' &
-                     feeding.habit != 'NA'  &
-                     min.size != 'NA' &
-                     TL != 'NA')
-
-gutdata2$feeding.habit <- as.character(gutdata2$feeding.habit)
-gutdata2$feeding.habit <- as.factor(gutdata2$feeding.habit)
-
-gutdata2$blanks <- as.character(gutdata2$blanks)
-gutdata2$blanks <- as.factor(gutdata2$blanks)
-
-gutdata2$polymer.ID <- as.character(gutdata2$polymer.ID)
-gutdata2$polymer.ID <- as.factor(gutdata2$polymer.ID)
-
-summary(gutdata2$region)
-
-
-global.mod <- 
-  lm(log(Mpsgut + 1) ~ environment + climate + feeding.habit + TL + region + 
-       min.size + float.meth + polymer.ID + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(global.mod)  # can pull out feeding habit
-
-all.mod1 <- 
-  lm(log(Mpsgut + 1) ~ environment + climate + TL + region + 
-       min.size + float.meth + polymer.ID + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(all.mod1)  # can pull out climate
-
-all.mod2 <- 
-  lm(log(Mpsgut + 1) ~ environment + TL + region + 
-       min.size + float.meth + polymer.ID + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(all.mod2)  # can pull out environment
-
-all.mod3 <- 
-  lm(log(Mpsgut + 1) ~ TL + region + 
-       min.size + float.meth + polymer.ID + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(all.mod3)  # can pull out polymer ID
-
-all.mod4 <- 
-  lm(log(Mpsgut + 1) ~ TL + region + 
-       min.size + float.meth + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(all.mod4)  # can pull out TL
-
-all.mod5 <- 
-  lm(log(Mpsgut + 1) ~ region + 
-       min.size + float.meth + blanks + exclude.fib ,
-     weights = N, data = gutdata2)
-
-drop1(all.mod5)  # stop here
-
-## final model contains region, min.size, float.meth, blanks & exclude.fib
-
-summary(all.mod5)
-
-region.test <- 
-  lm(log(Mpsgut + 1) ~ min.size + float.meth + blanks + exclude.fib,
-     weights = N, data = gutdata2)
-anova(all.mod5, region.test)  # p <0.001
-
-min.size.test <-
-  lm(log(Mpsgut + 1) ~ region + float.meth + blanks + exclude.fib,
-     weights = N, data = gutdata2)
-anova(all.mod5, min.size.test)  # p = 0.008
-
-float.meth.test <- 
-  lm(log(Mpsgut + 1) ~ region + min.size + blanks + exclude.fib,
-     weights = N, data = gutdata2)
-anova(all.mod5, float.meth.test)  # p = <0.001
-
-blanks.test <- 
-  lm(log(Mpsgut + 1) ~ region + min.size + float.meth + exclude.fib,
-     weights = N, data = gutdata2)
-anova(all.mod5, blanks.test)  # p = 0.030
-
-exclude.fib.test <- 
-  lm(log(Mpsgut + 1) ~ region + min.size + float.meth + blanks,
-     weights = N, data = gutdata2)
-anova(all.mod5, exclude.fib.test)  # p = 0.023
-
-coefplot(all.mod5)
-
-## Plot model predictions
-
-overall.prediction <- exp(predict(all.mod5, type = 'response')) - 1
-overall.upper <- exp(predict(all.mod5, type = 'response') + 
-                    (2*predict(all.mod5, type = 'response', 
-                               se.fit = TRUE)$se.fit)) - 1
-overall.lower <- exp(predict(all.mod5, type = 'response') - 
-                    (2*predict(all.mod5, type = 'response', 
-                               se.fit = TRUE)$se.fit)) - 1
 
 
 ## Plot according to lower limit of detection
