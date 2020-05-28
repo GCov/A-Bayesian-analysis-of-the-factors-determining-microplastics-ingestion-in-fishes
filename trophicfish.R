@@ -203,68 +203,29 @@ gutdata$Mpsgut <- ceiling(gutdata$Mpsgut)  # round up to the nearest integer
 
 mod1 <-
   glmmTMB(
-    Mpsgut ~ TL + (TL | region / study),
+    log(Mpsgut + 1) ~ TL + environment + (TL | region / study),
     weights = N,
-    family = poisson(link = 'log'),
     data = gutdata
   )
 
-model.assess(mod1)  ## variance is a bit weird
-overdisp_fun(mod1)  # model is over-dispersed, try NB
+model.assess(mod1)  ## variance looks pretty good
 
-mod2 <-
-  glmmTMB(
-    Mpsgut ~ TL + environment + (TL | region / study),
-    weights = N,
-    family = poisson(link = 'log'),
-    ziformula = ~ environment,
-    data = gutdata
-  )
+plot(resid(mod1) ~ gutdata$TL)
+plot(resid(mod1) ~ gutdata$environment)
+plot(resid(mod1) ~ gutdata$region)
+plot(resid(mod1) ~ gutdata$study)
 
-plot(resid(mod2) ~ fitted(mod2))
+summary(mod1)
 
-AICc(mod1, mod2)
-
-# try Gamma distribution
-
-gutdata$Mpsgut[gutdata$Mpsgut == 0] <- 1e-6  # add slight 'noise' to zeros
-
-mod2 <-
-  glmmTMB(
-    Mpsgut ~ TL * region + environment + (1 | study),
-    weights = N,
-    family = Gamma(),
-    data = gutdata
-  )
-
-summary(mod2)
-model.assess(mod2)  # much better
-plot(resid(mod2, type = 'pearson') ~ gutdata$TL)
-plot(resid(mod2, type = 'pearson') ~ subset(gutdata, TL != 'NA')$environment)
-AICc(mod1, mod2) # way better model fit, variance doesn't look too bad
-
-mod2.1 <- glmmTMB(log(Mpsgut + 1) ~ environment + (TL | region), 
+mod1.1 <- glmmTMB(log(Mpsgut + 1) ~ TL + (TL | region / study), 
                   weights = N, data = gutdata)
-anova(mod2, mod2.1)  # TL not significant, p = 0.575
+anova(mod1, mod1.1)  # environment significant, p < 0.001
 
-mod2.2 <- glmmTMB(log(Mpsgut + 1) ~ TL + (TL | region),
-                  weights = N,
-                  data = gutdata)
-
-anova(mod2, mod2.2)  # environment significant, p < 0.001
-
-# What happens if LOD is accounted for?
-
-mod3 <- glmmTMB(log(Mpsgut + 1) ~ TL  + environment + min.size + (TL | region),
-                weights = N,
-                data = gutdata)
-
-AICc(mod2, mod3)  # explains more variance with LOD included
 
 ## Plot model predictions
 
-ilink1 <- family(mod2)$linkinv
-prediction1 <- predict(mod2, re.form = NA, se.fit = TRUE)
+ilink1 <- family(mod1)$linkinv
+prediction1 <- predict(mod1, re.form = NA, se.fit = TRUE)
 
 gutdata$predict <- exp(ilink1(prediction1$fit)) - 1
 gutdata$upper <- exp(ilink1(prediction1$fit +
@@ -332,14 +293,16 @@ dev.off()
 ## Effect of region on ingestion rates
 ## Need to account for study FAO area
 
-ingestion <- subset(trophicfish2, IR != "NA")
+ingestion <- subset(trophicfish2, !is.na(IR))
 
 summary(ingestion$IR)
 
-length(ingestion$species) # 560 data points
-length(unique(ingestion$species)) # 439 species
-length(unique(ingestion$family)) # from 148 families
-length(unique(ingestion$study)) # 91 studies
+length(ingestion$species) # 639 data points
+length(unique(ingestion$species)) # 478 species
+length(unique(ingestion$family)) # from 157 families
+length(unique(ingestion$study)) # 105 studies
+
+ingestion$region <- as.factor(ingestion$region)
 
 levels(ingestion$region)
 
@@ -350,10 +313,10 @@ ingestion$region <- as.factor(ingestion$region)
 summary(ingestion)
 
 ing.mod1 <- glmmTMB(
-  IR ~ TL + (TL | region),
+  IR ~ TL + (TL | region / study),
   weights = N,
   data = ingestion,
-  family = binomial(link = 'logit')
+  family = beta_family(link = 'logit')
 )
 
 summary(ing.mod1)  ## TL not sig., p = 0.6
