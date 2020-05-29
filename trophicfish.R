@@ -145,6 +145,21 @@ levels(trophicfish2$feeding.habit)
 trophicfish2$study.habitat <- as.factor(trophicfish2$study.habitat)
 trophicfish2$environment <- as.factor(trophicfish2$environment)
 
+trophicfish2$region <- as.factor(trophicfish2$region)
+trophicfish2$area <- 
+  mapvalues(trophicfish2$region,
+            from = levels(trophicfish2$region),
+            to = c('Freshwater', 'Freshwater',
+                   'Freshwater', 'Freshwater',
+                   'Atlantic', 'Atlantic',
+                   'Atlantic', 'Atlantic',
+                   'Freshwater', 'Indian Ocean',
+                   'Indian Ocean', 'Indian Ocean',
+                   'Mediterranean and Black Sea', 'Pacific',
+                   'Pacific', 'Pacific',
+                   'Pacific', 'Pacific',
+                   'Pacific'))
+
 gutdata <- subset(trophicfish2, Mpsgut != 'NA')
 summary(gutdata)
 summary(gutdata$author)
@@ -295,73 +310,121 @@ dev.off()
 
 ingestion <- subset(trophicfish2, !is.na(IR))
 
-summary(ingestion$IR)
+## Convert to successes/failures
 
-length(ingestion$species) # 639 data points
+ingestion$successes <- round(with(ingestion, N * IR), digits = 0)
+ingestion$failures <- round(with(ingestion,  N * (1 - IR), digits = 0))
+
+length(ingestion$species) # 638 data points
 length(unique(ingestion$species)) # 478 species
 length(unique(ingestion$family)) # from 157 families
 length(unique(ingestion$study)) # 105 studies
 
-ingestion$region <- as.factor(ingestion$region)
-
-levels(ingestion$region)
-
-summary(ingestion$region)
 ingestion$region <- as.character(ingestion$region)
 ingestion$region <- as.factor(ingestion$region)
 
 summary(ingestion)
 
 ing.mod1 <- glmmTMB(
-  IR ~ TL + (TL | region / study),
-  weights = N,
+  cbind(successes, failures) ~ TL + (TL | region) + (1 | study),
   data = ingestion,
-  family = beta_family(link = 'logit')
+  family = binomial(link = 'logit'),
+  REML = TRUE
 )
 
-summary(ing.mod1)  ## TL not sig., p = 0.6
-model.assess(ing.mod1) # variance looks pretty homogenous
-plot(resid(ing.mod1, type = 'pearson') ~ 
+summary(ing.mod1)
+overdisp_fun(ing.mod1)  # model overdispersed
+
+## Try beta-binomial model
+
+ing.mod2 <- glmmTMB(
+  cbind(successes, failures) ~ TL + (TL | region) + (1 | study),
+  data = ingestion,
+  family = betabinomial(link = 'logit'),
+  REML = TRUE
+)
+
+AICc(ing.mod1, ing.mod2)  # lower AIC but singular fit
+
+## Try dropping study as a random effect
+
+ing.mod3 <- glmmTMB(
+  cbind(successes, failures) ~ TL + (TL | region),
+  data = ingestion,
+  family = betabinomial(link = 'logit'),
+  REML = TRUE
+)
+
+AICc(ing.mod1, ing.mod2, ing.mod3)  # go with ing.mod3
+
+summary(ing.mod3)  ## TL not sig., p = 0.05
+model.assess(ing.mod3) # variance looks pretty homogenous
+plot(resid(ing.mod3, type = 'pearson') ~ 
        ingestion$region) # patterns, but not too wild
+
+## Compare with Poisson model
+
+ing.mod4 <- glmmTMB(
+  successes ~ TL + (TL | region) + offset(log(N)),
+  data = ingestion,
+  family = poisson(link = 'log')
+)
+
+## And NB model
+
+ing.mod5 <- glmmTMB(
+  successes ~ TL + (TL | region) + offset(log(N)),
+  data = ingestion,
+  family = nbinom1(link = 'log')
+)
+
+AICc(ing.mod3, ing.mod4, ing.mod5)  # the betabinomial model is a better fit
 
 ## Plot model predictions
 
-ing.prediction <- predict(ing.mod1, type = 'response')
-ing.upper <- ing.prediction + 
-  (2*predict(ing.mod1, type = 'response', se.fit = TRUE)$se.fit)
-ing.lower <- ing.prediction - 
-  (2*predict(ing.mod1, type = 'response', se.fit = TRUE)$se.fit)
+ilink2 <- family(ing.mod3)$linkinv
 
-png('Ingestion Rate Plot.png', width = 33, height = 19, 
+ingestionframe <- ingestion
+ingestionframe$study <- NA
+
+ing.prediction <- predict(ing.mod3, 
+                          newdata = ingestionframe,
+                          type = 'link', 
+                          re.form = NULL, 
+                          se.fit = TRUE)
+
+ingestionframe$predict <- ilink2(ing.prediction$fit)
+ingestionframe$lower <- ilink2(ing.prediction$fit - (1.96 * ing.prediction$se.fit))
+ingestionframe$upper <- ilink2(ing.prediction$fit + (1.96 * ing.prediction$se.fit))
+
+png('Ingestion Rate Plot.png', width = 16.7, height = 15, 
     units = 'cm', res = 300)
 
 ggplot(ingestion) +
-  geom_line(aes(x = TL, y = ing.prediction, colour = region),
+  geom_line(aes(x = ingestionframe$TL, 
+                y = ingestionframe$predict, 
+                colour = region),
             size = 1, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = ing.lower, ymax = ing.upper, fill = region, 
-                  colour = region), 
-              alpha = 0.3, linetype = 'dashed') +
-  geom_jitter(aes(x = TL, y = IR, size = N, colour = region),
-              shape = 1) +
-  facet_grid(. ~ area, scales = 'free_x') +
+  geom_ribbon(aes(x = ingestionframe$TL, 
+                  ymin = ingestionframe$lower, 
+                  ymax = ingestionframe$upper, 
+                  fill = region), 
+              alpha = 0.3) +
+  geom_point(aes(x = TL, y = IR, size = N, colour = region),
+             shape = 1) +
+  facet_grid(area ~ .,
+             labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Trophic Level',
        y = 'Ingestion Rate',
        colour = 'FAO Area',
        fill = 'FAO Area',
        size = 'Sample Size') +
+  scale_fill_manual(values = qualitative_hcl(n = 18, palette = 'Dark3')) +
+  scale_colour_manual(values = qualitative_hcl(n = 18, palette = 'Dark3')) +
   coord_cartesian(xlim = c(2,4.7), ylim = c(0,1)) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
-  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.1)) +
-  theme_few() +
-  scale_color_manual(values = col1) +
-  scale_fill_manual(values = col1) +
-  theme(
-    text = element_text(size = 14),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 14),
-    strip.text = element_text(size = 16),
-    legend.text = element_text(size = 12)
-  )
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
+  theme1
 
 dev.off()
 
