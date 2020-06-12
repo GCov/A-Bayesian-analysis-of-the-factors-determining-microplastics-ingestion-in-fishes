@@ -220,10 +220,12 @@ mod1 <-
   glmmTMB(
     log(Mpsgut + 1) ~ TL + environment + (TL | region / study),
     weights = N,
-    data = gutdata
+    data = gutdata,
+    start = 0.1
   )
 
 model.assess(mod1)  ## variance looks pretty good
+hist(resid(mod1, type = 'pearson'), freq = FALSE)  # there could be some skew
 
 plot(resid(mod1) ~ gutdata$TL)
 plot(resid(mod1) ~ gutdata$environment)
@@ -239,17 +241,22 @@ anova(mod1, mod1.1)  # environment significant, p < 0.001
 
 ## Plot model predictions
 
-ilink1 <- family(mod1)$linkinv
-prediction1 <- predict(mod1, re.form = NA, se.fit = TRUE)
+gutdataframe <- gutdata
+gutdataframe$study <- NA
 
-gutdata$predict <- exp(ilink1(prediction1$fit)) - 1
-gutdata$upper <- exp(ilink1(prediction1$fit +
+ilink1 <- family(mod1)$linkinv
+prediction1 <- predict(mod1, 
+                       newdata = gutdataframe,
+                       re.form = NULL, se.fit = TRUE)
+
+gutdataframe$predict <- exp(ilink1(prediction1$fit)) - 1
+gutdataframe$upper <- exp(ilink1(prediction1$fit +
                               (1.96 * prediction1$se.fit))) - 1
-gutdata$lower <- exp(ilink1(prediction1$fit -
+gutdataframe$lower <- exp(ilink1(prediction1$fit -
                               (1.96 * prediction1$se.fit))) - 1
 
 freshplot <-
-  ggplot(subset(gutdata, study.habitat == 'Freshwater')) +
+  ggplot(subset(gutdataframe, study.habitat == 'Freshwater')) +
   geom_line(aes(x = TL, y = predict, colour = environment),
             size = 0.5, alpha = 0.8) +
   geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
@@ -273,7 +280,7 @@ freshplot <-
   theme1
 
 marineplot <-
-  ggplot(subset(gutdata, study.habitat == 'Marine')) +
+  ggplot(subset(gutdataframe, study.habitat == 'Marine')) +
   geom_line(aes(x = TL, y = predict, colour = environment),
             size = 0.5, alpha = 0.8) +
   geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
@@ -425,6 +432,89 @@ ggplot(ingestion) +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 0.5)) +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
   theme1
+
+dev.off()
+
+## Feeding strategy model
+
+summary(ingestion$feeding.habit)
+feeding <- subset(ingestion, 
+                  feeding.habit != 'Not listed' &
+                    feeding.habit != 'Other' &
+                    feeding.habit != 'Detritus')
+summary(feeding$feeding.habit)
+feeding$feeding.habit <- as.character(feeding$feeding.habit)
+feeding$feeding.habit <- as.factor(feeding$feeding.habit)
+
+## Fit binomial model
+
+feedmod1 <- 
+  glmmTMB(cbind(successes, failures) ~ feeding.habit + (1 | region / study),
+          family = binomial(link = 'logit'),
+          data = feeding,
+          REML = TRUE)
+
+overdisp_fun(feedmod1)  # overdispersed
+
+## Try betabinomial
+
+feedmod2 <- 
+  glmmTMB(cbind(successes, failures) ~ feeding.habit + (1 | region / study),
+          family = betabinomial(link = 'logit'),
+          data = feeding,
+          REML = TRUE)
+
+AICc(feedmod1, feedmod2)  # better fit with betabinomial dist.
+
+model.assess(feedmod2)  # variance looks pretty good
+
+plot(resid(feedmod2, type = 'pearson') ~ feeding$feeding.habit)
+plot(resid(feedmod2, type = 'pearson') ~ feeding$region)
+
+summary(feedmod2)
+
+feedmod2.1 <- update(feedmod2, . ~ . -feeding.habit)
+
+anova(feedmod2, feedmod2.1)  # feeding habit not significant, p = 0.258
+
+## Plot predictions
+
+feedingframe <- feeding
+feedingframe$study <- NA
+
+ilink3 <- family(feedmod2)$linkinv
+prediction3 <- predict(feedmod2,
+                       newdata = feedingframe,
+                       re.form = NULL,
+                       se.fit = TRUE)
+
+feedingframe$predict <- ilink3(prediction3$fit)
+feedingframe$lower <- ilink3(prediction3$fit - (1.96 * prediction3$se.fit))
+feedingframe$upper <- ilink3(prediction3$fit + (1.96 * prediction3$se.fit))
+
+png('Feeding Habit Plot.png', width = 16.7, height = 15, 
+    units = 'cm', res = 300)
+
+ggplot(feedingframe) +
+  geom_jitter(aes(x = feeding.habit, y = IR, size = N),
+              shape = 1) +
+  geom_point(aes(x = feeding.habit, 
+                 y = predict),
+             size = 1, colour = 'red') +
+  geom_errorbar(aes(x = feeding.habit, 
+                   ymin = lower, 
+                   ymax = upper), 
+                colour = 'red') +
+  facet_wrap( ~ region,
+             labeller = label_wrap_gen(width = 20)) +
+  labs(x = 'Feeding Habit',
+       y = 'Ingestion Rate',
+       size = 'Sample Size') +
+  coord_cartesian(ylim = c(0,1)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
+  theme1 + 
+  theme(legend.position = 'top',
+        axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 
 dev.off()
 
