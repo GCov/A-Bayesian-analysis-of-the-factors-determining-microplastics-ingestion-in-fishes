@@ -218,10 +218,16 @@ gutdata$Mpsgut <- ceiling(gutdata$Mpsgut)  # round up to the nearest integer
 
 mod1 <-
   glmmTMB(
-    log(Mpsgut + 1) ~ TL + environment + (TL | region / study),
+    log(Mpsgut + 1) ~ 
+      scale(TL, center = TRUE) + 
+      environment + 
+      scale(min.size, center = TRUE) +
+      polymer.ID +
+      blanks +
+      exclude.fib +
+      (TL | region),
     weights = N,
-    data = gutdata,
-    start = 0.1
+    data = gutdata
   )
 
 model.assess(mod1)  ## variance looks pretty good
@@ -234,26 +240,25 @@ plot(resid(mod1) ~ gutdata$study)
 
 summary(mod1)
 
-mod1.1 <- glmmTMB(log(Mpsgut + 1) ~ TL + (TL | region / study), 
-                  weights = N, data = gutdata)
-anova(mod1, mod1.1)  # environment significant, p < 0.001
-
-
 ## Plot model predictions
 
 gutdataframe <- gutdata
 gutdataframe$study <- NA
 
 ilink1 <- family(mod1)$linkinv
+
 prediction1 <- predict(mod1, 
                        newdata = gutdataframe,
                        re.form = NULL, se.fit = TRUE)
 
 gutdataframe$predict <- exp(ilink1(prediction1$fit)) - 1
-gutdataframe$upper <- exp(ilink1(prediction1$fit +
-                              (1.96 * prediction1$se.fit))) - 1
-gutdataframe$lower <- exp(ilink1(prediction1$fit -
-                              (1.96 * prediction1$se.fit))) - 1
+
+simmod1 <- simulate(mod1, nsim = 5000)
+
+gutdataframe$predict <- exp((apply(simmod1, 1, mean))) - 1
+
+gutdataframe$upper <- exp(apply(simmod1, 1, quantile, probs = 0.975)) - 1
+gutdataframe$lower <- exp(apply(simmod1, 1, quantile, probs = 0.275)) - 1
 
 freshplot <-
   ggplot(subset(gutdataframe, study.habitat == 'Freshwater')) +
@@ -270,7 +275,6 @@ freshplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
   scale_fill_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
                     name = 'Environment') +
   scale_colour_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
@@ -294,7 +298,6 @@ marineplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  coord_cartesian(xlim = c(2,5), ylim = c(0,30)) +
   scale_fill_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),
                     name = 'Environment') +
   scale_colour_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),

@@ -10,11 +10,10 @@ prior.MCMCmod1 <-
 
 MCMCmod1 <-
   MCMCglmm(
-    log(Mpsgut + 1) ~ TL * study.habitat,
+    Mpsgut ~ TL * study.habitat,
     random = ~ (TL | region),
-    rcov = ~ N,
     family = 'gaussian',
-    prior = prior.MCMCmod1,
+    prior = NULL,
     data = gutdata,
     nitt = 1000,
     thin = 10,

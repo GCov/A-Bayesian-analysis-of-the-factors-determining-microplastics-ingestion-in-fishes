@@ -1,0 +1,13 @@
+model {
+  
+  # Likelihood
+  for (i in 1:N) {
+  MPs[i] ~ dexp(lambda[i])
+  log(lambda[i]) <- int + a * TL[i] + b[region[i]]
+  }
+  
+  # Priors
+  int ~ dexp(0.1)  
+  a ~ dnorm(0, 1)
+  b[region] ~ dnorm(0, 2.3)
+  }
