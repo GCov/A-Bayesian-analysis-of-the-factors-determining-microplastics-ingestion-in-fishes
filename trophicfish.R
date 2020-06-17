@@ -1,6 +1,5 @@
 library(plyr)
 library(ggplot2)
-library(nlme)
 library(MuMIn)
 library(lme4)
 library(cowplot)
@@ -216,6 +215,15 @@ gutdata <- subset(gutdata, !is.na(TL) & !is.na(Mpsgut))  # remove NAs
 
 gutdata$Mpsgut <- ceiling(gutdata$Mpsgut)  # round up to the nearest integer
 
+gutdata$polymer.ID <- as.factor(gutdata$polymer.ID)
+
+gutdata$blanks <- as.factor(gutdata$blanks)
+
+gutdata$exclude.fib <- as.factor(gutdata$exclude.fib)
+
+gutdata$region <- as.character(gutdata$region)
+gutdata$region <- as.factor(gutdata$region)
+
 mod1 <-
   glmmTMB(
     log(Mpsgut + 1) ~ 
@@ -237,6 +245,26 @@ plot(resid(mod1) ~ gutdata$TL)
 plot(resid(mod1) ~ gutdata$environment)
 plot(resid(mod1) ~ gutdata$region)
 plot(resid(mod1) ~ gutdata$study)
+
+
+
+## Inference
+
+mod1.1 <- update(mod1, . ~ . -scale(TL, center = TRUE))
+mod1.2 <- update(mod1, . ~ . -environment)
+mod1.3 <- update(mod1, . ~ . -scale(min.size, center = TRUE))
+mod1.4 <- update(mod1, . ~ . -polymer.ID)
+mod1.5 <- update(mod1, . ~ . -blanks)
+mod1.6 <- update(mod1, . ~ . -exclude.fib)
+mod1.7 <- update(mod1, . ~ . -(TL | region))
+
+anova(mod1, mod1.1)  # TL not sig., p = 0.692
+anova(mod1, mod1.2)  # Environment sig., p < 0.001
+anova(mod1, mod1.3)  # LOD sig., p < 0.001
+anova(mod1, mod1.4)  # Polymer ID sig., p < 0.001
+anova(mod1, mod1.5)  # Blanks sig., p < 0.001
+anova(mod1, mod1.6)  # Exclude.fib sig., p < 0.001
+anova(mod1, mod1.7)  # Random effects sig. p < 0.001
 
 summary(mod1)
 
@@ -262,11 +290,11 @@ gutdataframe$lower <- exp(apply(simmod1, 1, quantile, probs = 0.275)) - 1
 
 freshplot <-
   ggplot(subset(gutdataframe, study.habitat == 'Freshwater')) +
-  geom_line(aes(x = TL, y = predict, colour = environment),
+  geom_line(aes(x = TL, y = predict, colour = exclude.fib),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = exclude.fib), 
               alpha = 0.3) +
-  geom_point(aes(x = TL, y = Mpsgut, colour = environment),
+  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib),
              shape = 1, size = 0.75) +
   facet_wrap(~ region, scales = 'free_x', ncol = 4,
              labeller = label_wrap_gen(width = 20)) +
@@ -275,21 +303,21 @@ freshplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_fill_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
-                    name = 'Environment') +
-  scale_colour_manual(values = qualitative_hcl(n = 5, palette = 'Warm'),
-                      name = 'Environment') +
+  scale_fill_manual(values = c('darkred', 'darkgreen'),
+                    name = 'Fibres Excluded?') +
+  scale_colour_manual(values = c('darkred', 'darkgreen'),
+                      name = 'Fibres Excluded?') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
   theme1
 
 marineplot <-
   ggplot(subset(gutdataframe, study.habitat == 'Marine')) +
-  geom_line(aes(x = TL, y = predict, colour = environment),
+  geom_line(aes(x = TL, y = predict, colour = exclude.fib),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = environment), 
+  geom_ribbon(aes(x = TL, ymin = lower, ymax = upper, fill = exclude.fib), 
               alpha = 0.3) +
-  geom_point(aes(x = TL, y = Mpsgut, colour = environment),
+  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib),
              shape = 1, size = 0.75) +
   facet_wrap(~ region, scales = 'free_x', ncol = 4,
              labeller = label_wrap_gen(width = 20)) +
@@ -298,10 +326,10 @@ marineplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_fill_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),
-                    name = 'Environment') +
-  scale_colour_manual(values = qualitative_hcl(n = 8, palette = 'Cold'),
-                      name = 'Environment') +
+  scale_fill_manual(values = c('darkred', 'darkgreen'),
+                    name = 'Fibres Excluded?') +
+  scale_colour_manual(values = c('darkred', 'darkgreen'),
+                      name = 'Fibres Excluded?') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
   theme1
