@@ -1,54 +1,88 @@
 library(coda)
-library(rjags)
-
-TM1matrix <- with(gutdata, model.matrix(Mpsgut ~ TL + region))
-
-jagsdata1 <- 
-  list(MPs = gutdata$Mpsgut,
-       TL = as.numeric(scale(gutdata$TL, center = TRUE)),
-       N = length(gutdata$Mpsgut),
-       region = as.integer(gutdata$region))
-
-cat(
-  "model {
+library(R2jags)
+library(mcmcplots)
+library(arm)
   
+## Specify model
+
+jagsmod1 <- function()
+{
   # Likelihood
-  for (i in 1:N) {
-  MPs[i] ~ dexp(lambda[i])
-  log(lambda[i]) <- int + a * TL[i] + b[region[i]]
+  for (i in 1:N)
+  {
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <- inprod(b, x[i,])
   }
-  
-  # Priors
-  int ~ dexp(0.1)  
-  a ~ dnorm(0, 1)
-  b[region] ~ dnorm(0, 2.3)
-  }",
-  file = "jagsmod1.txt"
+  # Prior
+  for (j in 1:nb)
+  {
+    b[j] ~ dnorm(0, 1)
+  }
+  sigma ~ dexp(2)
+  tau <- 1/(sigma*sigma)
+  # Predicted values
+  for (i in 1:N)
+  {
+    fitted_mu[i] <- mu[i]
+  }
+}
+
+## Generate initial values for MCMC
+
+init1 <- function()
+{
+  list("b" = rnorm(ncol(x)),
+       'sigma' = 1)
+}
+
+## Keep track of parameters
+
+param1 <- c("b", "sigma")
+
+## Build model design matrix
+
+x <- 
+  model.matrix(log(Mpsgut + 1) ~ scale(TL, center = TRUE)*region, 
+               data = gutdata)
+
+## Specify data
+
+jagsdata1 <-
+  list(
+    y = log(gutdata$Mpsgut + 1),
+    x = x,
+    N = nrow(gutdata),
+    nb = ncol(x)
+  )
+
+## Run the model
+run1 <- jags(
+  data = jagsdata1,
+  inits = init1,
+  parameters.to.save = param1,
+  n.chains = 3,
+  n.iter = 20000,
+  n.burnin = 1000,
+  model = jagsmod1
 )
 
-params1 <- c("int", "a", "b")
+print(run1)
+plot(run1)
 
-jagsmod1 <- jags.model(file = "jagsmod1.txt",
-                       data = jagsdata1,
-                       n.chains = 4,
-                       n.adapt = 500)
+run1mcmc <- as.mcmc(run1)
+plot(run1mcmc)
+run1mat <- as.matrix(run1mcmc)
+run1dat <- as.data.frame(run1mat)
 
-samps1 <- coda.samples(jagsmod1, params1, n.iter = 10000)
-
-summary(samps1)
-
-summary(window(samps1, start = 5001))
-
-plot(samps1)
-
-a <- as.numeric(samps1[[1]][, 1])
-int <- as.numeric(samps1[[1]][, 2])
+summary(run1mcmc) 
 
 sim.MPs <- data.frame(TL = gutdata$TL)
 sim.MPs$stan.TL <- scale(sim.MPs$TL, center = TRUE)
 
-for(i in 1:length(sim.MPs$TL)) {
-  lambda <- int + a*sim.MPs$stan.TL[i]
+for(i in 1:nrows(x))
+{
+  for(j in 1:)
+  mu <- run1$BUGSoutput$sims.list$b
   MPs <- rexp(lambda)
   sim.MPs$mean[1] <- mean(MPs)
   sim.MPs$lower95[1] <- quantile(MPs, 0.025)
