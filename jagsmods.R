@@ -111,73 +111,92 @@ Params1[21:37, 2] <- MAP1[39:55, 1]
 Params1[c(1:20, 38:55), c(3, 4)] <- HPD1[1:38, c(1, 5)]
 Params1[21:37, c(3,4)] <- HPD1[39:55, c(1, 5)]
 
-Params1$parameter <- mapvalues(Params1$parameter,
-                               from = levels(Params1$parameter),
-                               to = c("Intercept", "Blanks were used",
-                                      "Bathydemersal (environment)",
-                                      "Bathypelagic (environment)",
-                                      "Benthopelagic (environment",
-                                      "Demersal (environment)",
-                                      "Freshwater benthopelagic (environment)",
-                                      "Freshwater demersal (environment)",
-                                      "Freshwater pelagic (environment)",
-                                      "Freshwater pelagic-neritic (environment",
-                                      "Pelagic (environment)",
-                                      "Pelagic-neritic (environment",
-                                      "Reef-associated (environment)",
-                                      "Fibres excluded",
-                                      "Sample size (number of fish)",
-                                      "Polymer ID used",
-                                      "America, North - Inland Waters (region)",                         
-                                      "America, South - Inland Waters (region)",                         
-                                      "Asia - Inland Waters (region)",                                   
-                                      "Atlantic, Eastern Central (region)",                              
-                                      "Atlantic, Northeast (region)",                                    
-                                      "Atlantic, Southwest (region)",                                   
-                                      "Atlantic, Western Central (region)",                              
-                                      "Europe - Inland Waters (region)",                                 
-                                      "Indian Ocean, Antarctic (region)",                                
-                                      "Indian Ocean, Eastern (region)",                                  
-                                      [28] "regionIndian Ocean, Western"                                  
-                                      [29] "regionMediterranean and Black Sea"                            
-                                      [30] "regionPacific, Eastern Central"                               
-                                      [31] "regionPacific, Northeast"                                     
-                                      [32] "regionPacific, Northwest"                                     
-                                      [33] "regionPacific, Southeast"                                     
-                                      [34] "regionPacific, Southwest"                                     
-                                      [35] "regionPacific, Western Central"                               
-                                      [36] "scale(min.size, center = TRUE)"                               
-                                      [37] "scale(TL, center = TRUE)"                                     
-                                      [38] "scale(TL, center = TRUE):regionAmerica, North - Inland Waters"
-                                      [39] "scale(TL, center = TRUE):regionAmerica, South - Inland Waters"
-                                      [40] "scale(TL, center = TRUE):regionAsia - Inland Waters"          
-                                      [41] "scale(TL, center = TRUE):regionAtlantic, Eastern Central"     
-                                      [42] "scale(TL, center = TRUE):regionAtlantic, Northeast"           
-                                      [43] "scale(TL, center = TRUE):regionAtlantic, Southwest"           
-                                      [44] "scale(TL, center = TRUE):regionAtlantic, Western Central"     
-                                      [45] "scale(TL, center = TRUE):regionEurope - Inland Waters"        
-                                      [46] "scale(TL, center = TRUE):regionIndian Ocean, Antarctic"       
-                                      [47] "scale(TL, center = TRUE):regionIndian Ocean, Eastern"         
-                                      [48] "scale(TL, center = TRUE):regionIndian Ocean, Western"         
-                                      [49] "scale(TL, center = TRUE):regionMediterranean and Black Sea"   
-                                      [50] "scale(TL, center = TRUE):regionPacific, Eastern Central"      
-                                      [51] "scale(TL, center = TRUE):regionPacific, Northeast"            
-                                      [52] "scale(TL, center = TRUE):regionPacific, Northwest"            
-                                      [53] "scale(TL, center = TRUE):regionPacific, Southeast"            
-                                      [54] "scale(TL, center = TRUE):regionPacific, Southwest"            
-                                      [55] "scale(TL, center = TRUE):regionPacific, Western Central"  
-                                      
+Params1$parameter <- mapvalues(
+  Params1$parameter,
+  from = levels(Params1$parameter),
+  to = c(
+    "Intercept",
+    "Blanks were used",
+    "Bathydemersal (environment)",
+    "Bathypelagic (environment)",
+    "Benthopelagic (environment",
+    "Demersal (environment)",
+    "Freshwater benthopelagic (environment)",
+    "Freshwater demersal (environment)",
+    "Freshwater pelagic (environment)",
+    "Freshwater pelagic-neritic (environment",
+    "Pelagic (environment)",
+    "Pelagic-neritic (environment",
+    "Pelagic-oceanic (environment)",
+    "Reef-associated (environment)",
+    "Fibres excluded",
+    "Standardized sample size (number of fish)",
+    "Polymer ID used",
+    "America, North - Inland Waters (region)",
+    "America, South - Inland Waters (region)",
+    "Asia - Inland Waters (region)",
+    "Atlantic, Eastern Central (region)",
+    "Atlantic, Northeast (region)",
+    "Atlantic, Southwest (region)",
+    "Atlantic, Western Central (region)",
+    "Europe - Inland Waters (region)",
+    "Indian Ocean, Antarctic (region)",
+    "Indian Ocean, Eastern (region)",
+    "Indian Ocean, Western (region)",
+    "Mediterranean and Black Sea (region)",
+    "Pacific, Eastern Central (region)",
+    "Pacific, Northeast (region)",
+    "Pacific, Northwest (region)",
+    "Pacific, Southeast (region)",
+    "Pacific, Southwest (region)",
+    "Pacific, Western Central (region)",
+    "Standardized lower limit of detection (microns)",
+    "Standardized trophic level",
+    "Standardized trophic level:America, North - Inland Waters",
+    "Standardized trophic level:America, South - Inland Waters",
+    "Standardized trophic level:Asia - Inland Waters",
+    "Standardized trophic level:Atlantic, Eastern Central",
+    "Standardized trophic level:Atlantic, Northeast",
+    "Standardized trophic level:Atlantic, Southwest",
+    "Standardized trophic level:Atlantic, Western Central",
+    "Standardized trophic level:Europe - Inland Waters",
+    "Standardized trophic level:Indian Ocean, Antarctic",
+    "Standardized trophic level:Indian Ocean, Eastern",
+    "Standardized trophic level:Indian Ocean, Western",
+    "Standardized trophic level:Mediterranean and Black Sea",
+    "Standardized trophic level:Pacific, Eastern Central",
+    "Standardized trophic level:Pacific, Northeast",
+    "Standardized trophic level:Pacific, Northwest",
+    "Standardized trophic level:Pacific, Southeast",
+    "Standardized trophic level:Pacific, Southwest",
+    "Standardized trophic level:Pacific, Western Central"
+  )
+)
+
+png('Gut Content HPDI Plot.png', 
+    width = 13, 
+    height = 15, 
+    units = 'cm', 
+    res = 300)
 
 ggplot(Params1) +
   geom_errorbar(aes(x = parameter,
                     ymin = lower,
-                    ymax = upper)) +
+                    ymax = upper),
+                size = 0.5) +
   geom_point(aes(x = parameter,
-                 y = MAP)) +
+                 y = MAP),
+             size = 1,
+             shape = 19) +
   geom_hline(aes(yintercept = 0),
-             linetype = 'dashed') +
+             linetype = 'dashed',
+             size = 0.5) +
+  labs(x = 'Coefficient',
+       y = '') +
   coord_flip() +
   theme1
+
+dev.off()
 
 # set.seed(1234)
 # for(j in 1:nrow(gutdata)) {
@@ -250,7 +269,7 @@ marineplot <-
   theme1
 
 
-png('Gut Content Plot.png', width = 16.7, height = 20, units = 'cm', res = 300)
+png('Gut Content Bayesian Plot.png', width = 16.7, height = 20, units = 'cm', res = 300)
 
 plot_grid(freshplot, marineplot, labels = c('A', 'B'), rel_heights = c(1,1.9),
           nrow = 2, align = 'v')
