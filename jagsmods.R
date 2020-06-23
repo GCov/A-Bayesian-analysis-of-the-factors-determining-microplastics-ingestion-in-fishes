@@ -20,7 +20,7 @@ jagsmod1 <- function()
   for (i in 1:N)
   {
     y[i] ~ dnorm(mu[i], tau)
-    mu[i] <- inprod(b, x[i,]) + inprod(c, z[i,])
+    mu[i] <- alpha + inprod(b, x[i, ]) + inprod(c, z[i, ])
   }
   for (j in 1:Nb)
   {
@@ -31,50 +31,56 @@ jagsmod1 <- function()
   {
     c[k] ~ dnorm(0, 1)
   }
-  sigma ~ dexp(2)
-  tau <- 1/(sigma*sigma)
+  alpha ~ dexp(1)
+  sigma ~ dexp(1)
+  tau <- 1 / (sigma * sigma)
   mu_b ~ dnorm(0, 1)
-  sigma_b ~ dexp(2)
-  tau_b <- 1/(sigma_b*sigma_b)
+  sigma_b ~ dexp(1)
+  tau_b <- 1 / (sigma_b * sigma_b)
 }
 
 ## Generate initial values for MCMC
 
 init1 <- function()
 {
-  list("b" = rnorm(ncol(x[ , c(1:20, 38:55)])),
-       "c" = rnorm(ncol(x[ , c(21:37)])),
-       'sigma' = 1,
-       "mu_b" = 0,
-       "sigma_b" = 1)
+  list(
+    "alpha" = 1,
+    "b" = rnorm(ncol(x[, c(2:19, 37:54)])),
+    "c" = rnorm(ncol(x[, c(2, 20:36)])),
+    'sigma' = 1,
+    "mu_b" = 0,
+    "sigma_b" = 1
+  )
 }
 
 ## Keep track of parameters
 
-param1 <- c("b", "c", "sigma", "mu", "mu_b", "sigma_b")
+param1 <- c("alpha", "b", "c", "sigma", "mu_b", "sigma_b", "mu")
 
 ## Build model design matrix
 
-x <- model.matrix(log(Mpsgut + 1) ~ 
-                    scale(TL, center = TRUE) * region +
-                    environment +
-                    scale(min.size, center = TRUE) +
-                    polymer.ID +
-                    blanks +
-                    exclude.fib +
-                    N,
-                  data = gutdata)
+x <- model.matrix(
+  log(Mpsgut + 1) ~
+    scale(TL, center = TRUE) * region +
+    environment +
+    scale(min.size, center = TRUE) +
+    polymer.ID +
+    blanks +
+    exclude.fib +
+    N,
+  data = gutdata
+)[,-1]
 
 ## Specify data
 
 jagsdata1 <-
   list(
     y = log(gutdata$Mpsgut + 1),
-    x = x[ , c(1:20, 38:55)],
-    z = x[ , c(21:37)],
+    x = x[, c(2:19, 37:54)],
+    z = x[, c(2, 20:36)],
     N = nrow(gutdata),
-    Nb = ncol(x[ , c(1:20, 38:55)]),
-    Nc = ncol(x[ , c(21:37)])
+    Nb = ncol(x[, c(2:19, 37:54)]),
+    Nc = ncol(x[, c(2, 20:36)])
   )
 
 ## Run the model
@@ -83,39 +89,79 @@ run1 <- jags(
   inits = init1,
   parameters.to.save = param1,
   n.chains = 3,
-  n.iter = 30000,
+  n.iter = 2000,
   n.burnin = 1000,
+  n.thin = 1,
+  jags.seed = 123,
   model = jagsmod1
 )
 
-print(run1)
-plot(run1)
-
 run1mcmc <- as.mcmc(run1)
-summary(run1mcmc) 
-HPD1 <- as.data.frame(summary(run1mcmc)$quantiles)
-MAP1 <- as.data.frame(summary(run1mcmc)$statistics)
+traceplot(run1mcmc)
 
-mu1 <- as.data.frame(run1$BUGSoutput$sims.list$mu)
-sigma1 <- as.data.frame(run1$BUGSoutput$sims.list$sigma)
+## Extend burnin to 2000 and up number of iterations to 10,000
+
+run2 <- jags(
+  data = jagsdata1,
+  inits = init1,
+  parameters.to.save = param1,
+  n.chains = 3,
+  n.iter = 10000,
+  n.burnin = 2000,
+  n.thin = 8,
+  jags.seed = 123,
+  model = jagsmod1
+)
+
+run2mcmc <- as.mcmc(run2)
+traceplot(run2mcmc)
+
+## Increase iteration to 50000
+
+run3 <- jags(
+  data = jagsdata1,
+  inits = init1,
+  parameters.to.save = param1,
+  n.chains = 3,
+  n.iter = 50000,
+  n.burnin = 2000,
+  n.thin = 24,
+  jags.seed = 123,
+  model = jagsmod1
+)
+
+run3mcmc <- as.mcmc(run3)
+traceplot(run3mcmc)
+
+
+## Inference
+
+summary(run3mcmc) 
+HPD1 <- as.data.frame(summary(run3mcmc)$quantiles)
+MAP1 <- as.data.frame(summary(run3mcmc)$statistics)
+
+mu1 <- as.data.frame(run3$BUGSoutput$sims.list$mu)
+sigma1 <- as.data.frame(run3$BUGSoutput$sims.list$sigma)
 
 ## Extract MAP and HPDIs for the parameters
-Params1 <- data.frame(parameter = colnames(x))
-Params1$parameter <- as.factor(Params1$parameter)
+Params1 <- data.frame(parameter = colnames(x), stringsAsFactors = FALSE)
 Params1$MAP <- NA
 Params1$lower <- NA
 Params1$upper <- NA
 
-Params1[c(1:20, 38:55), 2] <- MAP1[1:38, 1]
-Params1[21:37, 2] <- MAP1[39:55, 1]
-Params1[c(1:20, 38:55), c(3, 4)] <- HPD1[1:38, c(1, 5)]
-Params1[21:37, c(3,4)] <- HPD1[39:55, c(1, 5)]
+Params1[c(2:19, 37:54), 2] <- MAP1[2:37, 1]
+Params1[c(1, 20:36), 2] <- MAP1[38:55, 1]
+Params1[c(2:19, 37:54), c(3, 4)] <- HPD1[2:37, c(1, 5)]
+Params1[c(1, 20:36), c(3,4)] <- HPD1[38:55, c(1, 5)]
+Params1[55, 2] <- MAP1[1, 1]
+Params1[55, c(3, 4)] <- HPD1[1, c(1,5)]
+Params1[55, 1] <- "Intercept"
+Params1$parameter <- as.factor(Params1$parameter)
 
 Params1$parameter <- mapvalues(
   Params1$parameter,
   from = levels(Params1$parameter),
   to = c(
-    "Intercept",
     "Blanks were used",
     "Bathydemersal (environment)",
     "Bathypelagic (environment)",
@@ -130,6 +176,7 @@ Params1$parameter <- mapvalues(
     "Pelagic-oceanic (environment)",
     "Reef-associated (environment)",
     "Fibres excluded",
+    "Intercept",
     "Standardized sample size (number of fish)",
     "Polymer ID used",
     "America, North - Inland Waters (region)",
@@ -237,9 +284,9 @@ freshplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_fill_manual(values = pal[1, 4],
+  scale_fill_manual(values = pal[c(1, 4)],
                     name = 'Fibres Excluded?') +
-  scale_colour_manual(values = pal[1, 4],
+  scale_colour_manual(values = pal[c(1, 4)],
                       name = 'Fibres Excluded?') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
@@ -260,9 +307,9 @@ marineplot <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_fill_manual(values = pal[1, 4],
+  scale_fill_manual(values = pal[c(1, 4)],
                     name = 'Fibres Excluded?') +
-  scale_colour_manual(values = pal[1, 4],
+  scale_colour_manual(values = pal[c(1, 4)],
                       name = 'Fibres Excluded?') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +

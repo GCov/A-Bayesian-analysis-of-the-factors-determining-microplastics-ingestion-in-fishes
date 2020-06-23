@@ -288,7 +288,7 @@ gutdataframe$predict <- exp((apply(simmod1, 1, mean))) - 1
 gutdataframe$upper <- exp(apply(simmod1, 1, quantile, probs = 0.975)) - 1
 gutdataframe$lower <- exp(apply(simmod1, 1, quantile, probs = 0.275)) - 1
 
-freshplot <-
+freshplot1 <-
   ggplot(subset(gutdataframe, study.habitat == 'Freshwater')) +
   geom_line(aes(x = TL, y = predict, colour = exclude.fib),
             size = 0.5, alpha = 0.8) +
@@ -311,7 +311,7 @@ freshplot <-
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
   theme1
 
-marineplot <-
+marineplot1 <-
   ggplot(subset(gutdataframe, study.habitat == 'Marine')) +
   geom_line(aes(x = TL, y = predict, colour = exclude.fib),
             size = 0.5, alpha = 0.8) +
@@ -337,7 +337,7 @@ marineplot <-
 
 png('Gut Content Plot.png', width = 16.7, height = 20, units = 'cm', res = 300)
 
-plot_grid(freshplot, marineplot, labels = c('A', 'B'), rel_heights = c(1,1.9),
+plot_grid(freshplot1, marineplot1, labels = c('A', 'B'), rel_heights = c(1,1.9),
           nrow = 2, align = 'v')
 
 dev.off()
