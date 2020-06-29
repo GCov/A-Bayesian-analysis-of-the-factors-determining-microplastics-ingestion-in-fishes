@@ -21,7 +21,7 @@ theme1 <-
     text = element_text(size = 7),
     axis.text = element_text(size = 7),
     strip.background = element_blank(),
-    strip.text = element_text(size = 8),
+    strip.text = element_text(size = 7),
     legend.text = element_text(size = 7),
     panel.grid = element_blank()
   )
@@ -142,6 +142,7 @@ trophicfish2$feeding.habit <- factor(
 levels(trophicfish2$feeding.habit)
 
 trophicfish2$study.habitat <- as.factor(trophicfish2$study.habitat)
+
 trophicfish2$environment <- as.factor(trophicfish2$environment)
 
 trophicfish2$region <- as.factor(trophicfish2$region)
@@ -181,6 +182,8 @@ gutdata$TL <- as.numeric(gutdata$TL)
 
 summary(gutdata$Mpsgut)
 gutdata$Mpsgut <- as.numeric(gutdata$Mpsgut)
+
+gutdata$family <- as.factor(gutdata$family)
 
 ggplot(gutdata, aes(x=climate , y=Mpsgut)) + 
   geom_boxplot(size=1, fill = 'grey80') + 
@@ -364,7 +367,7 @@ ingestion$region <- as.factor(ingestion$region)
 summary(ingestion)
 
 ing.mod1 <- glmmTMB(
-  cbind(successes, failures) ~ TL + (TL | region) + (1 | study),
+  cbind(successes, failures) ~ TL + (TL | region),
   data = ingestion,
   family = binomial(link = 'logit'),
   REML = TRUE
