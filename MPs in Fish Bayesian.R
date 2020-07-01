@@ -57,12 +57,13 @@ trophicfish$Mpsgutprod <- trophicfish$Mpsgut*trophicfish$N
 trophicfish$ SDMPsgutprod <- trophicfish$ SDMPsgut*trophicfish$N
 
 trophicfish2 <- ddply(trophicfish, 
-                      c('author', 'study.habitat', 'year', 'region', 'species', 
-                        'family', 'genus', 'environment', 'climate', 'red.list', 
-                        'feeding.type', 'feeding.habit', 'TL', 'min.size', 
-                        'float.meth', 'dig.meth', 'count.meth', 'polymer.meth',
-                        'polymer.ID', 'blanks', 'maj.fib', 'maj.under.one.mm', 
-                        'maj.polymer', 'maj.col', 'exclude.fib'), 
+                      c('author', 'study.habitat', 'year', 'region', 'species',
+                        'life.stage', 'family', 'genus', 'environment', 
+                        'climate', 'red.list', 'feeding.type', 'feeding.habit', 
+                        'TL', 'min.size', 'float.meth', 'dig.meth', 
+                        'count.meth', 'polymer.meth', 'polymer.ID', 'blanks', 
+                        'maj.fib', 'maj.under.one.mm', 'maj.polymer', 
+                        'maj.col', 'exclude.fib'), 
                       summarise, 
                       fork.lengthprod = sum(fork.lengthprod), 
                       total.lengthprod = sum(total.lengthprod), 
@@ -450,7 +451,7 @@ ggplot(Params1) +
   geom_hline(aes(yintercept = 0),
              linetype = 'dashed',
              size = 0.5,
-             colour = pal[3]) +
+             colour = pal[2]) +
   geom_errorbar(aes(x = reorder(parameter, as.numeric(rownames(Params1))),
                     ymin = lower,
                     ymax = upper),
@@ -459,7 +460,7 @@ ggplot(Params1) +
                  y = MAP),
              size = 1,
              shape = 16,
-             colour = pal[1]) +
+             colour = pal[3]) +
   labs(x = 'Coefficient',
        y = '') +
   coord_flip() +
@@ -513,6 +514,8 @@ gutdata$lower95 <-
 gutdata$upper95 <-
   exp(as.data.frame(summary(run4mcmc)$quantiles)[2:728, 5]) - 1
 
+gutdata$lower95[gutdata$lower95 < 0] <- 0
+
 # gutdata$post.predict[gutdata$post.predict < 0] <- 0
 # gutdata$lower95[gutdata$lower95 < 0] <- 0
 
@@ -523,8 +526,8 @@ freshplot1 <-
             size = 0.5, alpha = 0.8) +
   geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95, fill = exclude.fib), 
               alpha = 0.3) +
-  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib),
-             shape = 1, size = 0.5) +
+  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib, size = N),
+             shape = 1) +
   facet_wrap(~ region, scales = 'free_x', ncol = 5,
              labeller = label_wrap_gen(width = 15)) +
   labs(x = 'Trophic Level',
@@ -546,8 +549,8 @@ marineplot1 <-
             size = 0.5, alpha = 0.8) +
   geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95, fill = exclude.fib), 
               alpha = 0.3) +
-  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib),
-             shape = 1, size = 0.5) +
+  geom_point(aes(x = TL, y = Mpsgut, colour = exclude.fib, size = N),
+             shape = 1) +
   facet_wrap(~ region, scales = 'free_x', ncol = 5,
              labeller = label_wrap_gen(width = 15)) +
   labs(x = 'Trophic Level',
@@ -576,12 +579,12 @@ dev.off()
 
 freshplot2 <-
   ggplot(subset(gutdata, study.habitat == 'Freshwater')) +
+  geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
+              alpha = 0.75, fill = pal[3]) +
   geom_line(aes(x = min.size, y = post.predict),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
-              alpha = 0.3, fill = pal[1]) +
   geom_point(aes(x = min.size, y = Mpsgut),
-             shape = 1, size = 0.5) +
+             shape = 1, size = 1) +
   facet_wrap(~ region, ncol = 5,
              labeller = label_wrap_gen(width = 15)) +
   labs(x = expression(paste('Minimum Detectable Particle Size ('*mu*'m)')),
@@ -589,18 +592,20 @@ freshplot2 <-
          '          Microplastic\nConcentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
+  scale_y_continuous(trans = 'log1p', 
+                     breaks = c(0, 1, 10, 30),
+                     expand = c(0,0)) +
   scale_x_continuous(trans= 'log1p', breaks = c(0, 1, 10, 100, 500)) +
   theme1
 
 marineplot2 <-
   ggplot(subset(gutdata, study.habitat == 'Marine')) +
+  geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
+              alpha = 0.75, fill = pal[2]) +
   geom_line(aes(x = min.size, y = post.predict),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
-              alpha = 0.3, fill = pal[1]) +
   geom_point(aes(x = min.size, y = Mpsgut),
-             shape = 1, size = 0.5) +
+             shape = 1, size = 1) +
   facet_wrap(~ region, ncol = 5,
              labeller = label_wrap_gen(width = 15)) +
   labs(x = expression(paste('Minimum Detectable Particle Size ('*mu*'m)')),
@@ -608,7 +613,9 @@ marineplot2 <-
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        )),
        size = 'Sample Size') +
-  scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
+  scale_y_continuous(trans = 'log1p', 
+                     breaks = c(0, 1, 10, 30),
+                     expand = c(0,0)) +
   scale_x_continuous(trans= 'log1p', breaks = c(0, 1, 10, 100, 500)) +
   theme1
 
@@ -620,7 +627,7 @@ png(
   res = 500
 )
 
-plot_grid(freshplot2, marineplot2, labels = c('A', 'B'), rel_heights = c(1,2.9),
+plot_grid(freshplot2, marineplot2, labels = c('A', 'B'), rel_heights = c(1,2.5),
           nrow = 2, align = 'v')
 
 dev.off()
@@ -837,7 +844,7 @@ ggplot(Params2) +
                  y = MAP),
              size = 1.5,
              shape = 16,
-             colour = pal[1]) +
+             colour = pal[3]) +
   labs(x = 'Coefficient',
        y = '') +
   coord_flip() +
@@ -871,11 +878,11 @@ ingestion$upper95 <-
 
 freshplot3 <-
   ggplot(subset(ingestion, study.habitat == 'Freshwater')) +
+  geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95),
+              fill = pal[3],
+              alpha = 0.75) +
   geom_line(aes(x = TL, y = post.predict),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95),
-              fill = pal[1],
-              alpha = 0.3) +
   geom_point(aes(x = TL, y = IR, size = N),
              shape = 1) +
   facet_wrap( ~ region, ncol = 4,
@@ -889,11 +896,11 @@ freshplot3 <-
 
 marineplot3 <-
   ggplot(subset(ingestion, study.habitat == 'Marine')) +
+  geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95),
+              fill = pal[2],
+              alpha = 0.75) +
   geom_line(aes(x = TL, y = post.predict),
             size = 0.5, alpha = 0.8) +
-  geom_ribbon(aes(x = TL, ymin = lower95, ymax = upper95),
-              fill = pal[1],
-              alpha = 0.3) +
   geom_point(aes(x = TL, y = IR, size = N),
              shape = 1) +
   facet_wrap( ~ region, ncol = 4,
@@ -930,10 +937,11 @@ dev.off()
 
 ## Set up the data
 allo <- subset(gutdata, total.length != 'NA')
+allo$life.stage <- as.factor(allo$life.stage)
 
-length(allo$total.length)  # 342 data point remaining
-length(unique(allo$study))  # 52 studies
-length(unique(allo$species))  # 300 species
+length(allo$total.length)  # 394 data point remaining
+length(unique(allo$study))  # 61 studies
+length(unique(allo$species))  # 327 species
 
 ## Specify model
 allomod <- function()
@@ -1057,7 +1065,7 @@ ggplot(alloParams) +
                  y = MAP),
              size = 1,
              shape = 16,
-             colour = pal[1]) +
+             colour = pal[3]) +
   labs(x = 'Parameter',
        y = '') +
   coord_flip() +
@@ -1101,14 +1109,14 @@ png(
 )
 
 ggplot(allo) +
-  geom_line(aes(x = total.length, y = post.predict),
-            size = 0.5,
-            alpha = 0.8) +
   geom_ribbon(
     aes(x = total.length, ymin = lower95, ymax = upper95),
     fill = pal[1],
-    alpha = 0.3
+    alpha = 0.75
   ) +
+  geom_line(aes(x = total.length, y = post.predict),
+            size = 0.5,
+            alpha = 0.8) +
   geom_point(aes(x = total.length, y = Mpsgut),
              shape = 1,
              size = 0.25) +
@@ -1188,10 +1196,10 @@ ggplot(simdata) +
   geom_ribbon(aes(x = length,
                   ymin = lower95,
                   ymax = upper95),
-              alpha = 0.3, fill = pal[1]) +
+              alpha = 0.5, fill = pal[4]) +
   geom_line(aes(x = length,
                  y = mean),
-            colour = pal[1]) +
+            colour = pal[5]) +
   geom_point(aes(x = length,
                  y = predict),
              size = 0.5) +
@@ -1203,3 +1211,309 @@ ggplot(simdata) +
   theme1
 
 dev.off()
+
+#### Allometric model for ingestion rates ####
+
+## Set up the data
+
+allo_ing <- subset(allo, !is.na(IR))
+
+## Convert to successes/failures
+
+allo_ing$successes <- round(with(allo_ing, N * IR), digits = 0)
+allo_ing$failures <- round(with(allo_ing,  N * (1 - IR), digits = 0))
+
+length(allo_ing$species) # 257 data points
+length(unique(allo_ing$species)) # 215 species
+length(unique(allo_ing$family)) # from 93 families
+length(unique(allo_ing$study)) # 47 studies
+
+allo_ing$region <- as.character(allo_ing$region)
+allo_ing$region <- as.factor(allo_ing$region)
+
+summary(allo_ing)
+
+## Specify model
+allo_ingmod <- function()
+{
+  # Likelihood
+  for(i in 1:N)
+  {
+    y[i] ~ dbinom(p[i], n[i])
+    logit(p[i]) <- alpha + beta_length * length[i] + beta_region[region[i]] + 
+      beta_interaction[region[i]] * length[i]
+  }
+  
+  # Prior
+  alpha ~ dnorm(0, 1)
+  beta_length ~ dnorm(0, 1)
+  for(j in 1:Nregions)
+  {
+    beta_region[j] ~ dnorm(mu_region, tau_region)
+    beta_interaction[j] ~ dnorm(mu_interaction, tau_interaction)
+  }
+  mu_region ~ dnorm(0, 1)
+  tau_region <- 1 / (sigma_region * sigma_region)
+  sigma_region ~ dexp(1)
+  mu_interaction ~ dnorm(0, 1)
+  tau_interaction <- 1 / (sigma_interaction * sigma_interaction)
+  sigma_interaction ~ dexp(1)
+}
+
+
+## Initial values for MCMC chains
+init2 <- function()
+{
+  list(
+    "alpha" = 0.001,
+    "beta_length" = rnorm(1),
+    "mu_region" = rnorm(1),
+    "sigma_region" = 1,
+    "mu_interaction" = 1,
+    "sigma_interaction" = 1
+  )
+}
+
+## Parameters to keep track of
+param2 <- c("alpha", "beta_length", "beta_region", "beta_interaction")
+
+
+## Specify data
+jagsdata2 <- list(N = nrow(allo_ing),
+                  Nregions = max(as.integer(allo_ing$region)),
+                  y = as.numeric(allo_ing$successes),
+                  n = as.numeric(allo_ing$N),
+                  length = as.numeric(scale(allo_ing$total.length, center = TRUE)),
+                  region = as.integer(allo_ing$region))
+
+
+## Run the model
+allo_ingrun1 <- jags(
+  data = jagsdata2,
+  inits = init2,
+  parameters.to.save = param2,
+  n.chains = 3,
+  n.iter = 2000,
+  n.burnin = 1000,
+  n.thin = 1,
+  jags.seed = 123,
+  model = allo_ingmod
+)
+
+allo_ingrun1
+allo_ingrun1mcmc <- as.mcmc(allo_ingrun1)
+xyplot(allo_ingrun1mcmc, layout = c(6, ceiling(nvar(allo_ingrun1mcmc)/6)))
+
+## Increase burnins to 2000 and iterations to 10000
+
+allo_ingrun2 <- jags(
+  data = jagsdata2,
+  inits = init2,
+  parameters.to.save = param2,
+  n.chains = 3,
+  n.iter = 10000,
+  n.burnin = 2000,
+  n.thin = 8,
+  jags.seed = 123,
+  model = allo_ingmod
+)
+
+allo_ingrun2
+allo_ingrun2mcmc <- as.mcmc(allo_ingrun2)
+xyplot(allo_ingrun2mcmc, layout = c(6, ceiling(nvar(allo_ingrun2mcmc)/6)))
+
+## Increase iterations to 200,000
+
+allo_ingrun3 <- jags(
+  data = jagsdata2,
+  inits = init2,
+  parameters.to.save = param2,
+  n.chains = 3,
+  n.iter = 200000,
+  n.burnin = 2000,
+  n.thin = 44,
+  jags.seed = 123,
+  model = allo_ingmod
+)
+
+
+allo_ingrun3
+allo_ingrun3mcmc <- as.mcmc(allo_ingrun3)
+xyplot(allo_ingrun3mcmc, layout = c(6, ceiling(nvar(allo_ingrun3mcmc)/6)))
+beep(8)
+
+## Inference
+
+allo_ingHPDI <- as.data.frame(summary(allo_ingrun3mcmc)$quantiles)
+
+allo_ingMAP <- as.data.frame(summary(allo_ingrun3mcmc)$statistics)
+
+## Extract MAP and HPDIs for the parameters
+allo_ingParams <- data.frame(
+  parameter = as.factor(rownames(allo_ingMAP)),
+  MAP = allo_ingMAP[, 1],
+  lower = allo_ingHPDI[, 1],
+  upper = allo_ingHPDI[, 5]
+)
+
+allo_ingParams <- allo_ingParams[-35, ]
+allo_ingParams$parameter <- as.character(allo_ingParams$parameter)
+allo_ingParams$parameter <- as.factor(allo_ingParams$parameter)
+
+with(allo_ing, tapply(as.integer(region), region, mean))
+
+allo_ingParams$parameter <- mapvalues(
+  allo_ingParams$parameter,
+  from = levels(allo_ingParams$parameter),
+  to = c(
+    "Intercept",
+    "Standardized total length:Africa - Inland Waters",
+    "Standardized total length:Indian Ocean, Eastern",
+    "Standardized total length:Indian Ocean, Western",
+    "Standardized total length:Mediterranean and Black Sea",
+    "Standardized total length:Pacific, Eastern Central",
+    "Standardized total length:Pacific, Northwest",
+    "Standardized total length:Pacific, Southeast",
+    "Standardized total length:Pacific, Southwest",
+    "Standardized total length:America, North - Inland Waters",
+    "Standardized total length:Asia - Inland Waters",
+    "Standardized total length:Atlantic, Eastern Central",
+    "Standardized total length:Atlantic, Northeast",
+    "Standardized total length:Atlantic, Southwest",
+    "Standardized total length:Atlantic, Western Central",
+    "Standardized total length:Europe - Inland Waters",
+    "Standardized total length:Indian Ocean, Antarctic",
+    "Standardized Total Length (cm)",
+    "Africa - Inland Waters (region)",
+    "Indian Ocean, Eastern (region)",
+    "Indian Ocean, Western (region)",
+    "Mediterranean and Black Sea (region)",
+    "Pacific, Eastern Central (region)",
+    "Pacific, Northwest (region)",
+    "Pacific, Southeast (region)",
+    "Pacific, Southwest (region)",
+    "America, North - Inland Waters (region)",
+    "Asia - Inland Waters (region)",
+    "Atlantic, Eastern Central (region)",
+    "Atlantic, Northeast (region)",
+    "Atlantic, Southwest (region)",
+    "Atlantic, Western Central (region)",
+    "Europe - Inland Waters (region)",
+    "Indian Ocean, Antarctic (region)"
+  )
+)
+
+png('Ingestion Body Size HPDI Plot.png', 
+    width = 14, 
+    height = 15, 
+    units = 'cm', 
+    res = 500)
+
+ggplot(allo_ingParams) +
+  geom_hline(aes(yintercept = 0),
+             linetype = 'dashed',
+             size = 0.5,
+             colour = pal[2]) +
+  geom_errorbar(aes(x = parameter,
+                    ymin = lower,
+                    ymax = upper),
+                size = 0.25) +
+  geom_point(aes(x = parameter,
+                 y = MAP),
+             size = 1,
+             shape = 16,
+             colour = pal[3]) +
+  labs(x = 'Parameter',
+       y = '') +
+  coord_flip() +
+  theme1
+
+dev.off()
+
+## Body size doesn't seem to affect ingestion
+## Backs up similar patterns by region
+
+## Rerun model to extract p
+allo_ingparam2 <- c("p")
+
+allo_ingrun4 <- jags(
+  data = jagsdata2,
+  inits = init2,
+  parameters.to.save = allo_ingparam2,
+  n.chains = 3,
+  n.iter = 200000,
+  n.burnin = 2000,
+  n.thin = 44,
+  jags.seed = 123,
+  model = allo_ingmod
+)
+
+allo_ingrun4mcmc <- as.mcmc(allo_ingrun4)
+
+allo_ing$post.predict <-
+  as.data.frame(summary(allo_ingrun4mcmc)$statistics)[2:258, 1]
+allo_ing$lower95 <-
+  as.data.frame(summary(allo_ingrun4mcmc)$quantiles)[2:258, 1]
+allo_ing$upper95 <-
+  as.data.frame(summary(allo_ingrun4mcmc)$quantiles)[2:258, 5]
+
+freshplot4 <-
+  ggplot(subset(allo_ing, study.habitat == 'Freshwater')) +
+  geom_ribbon(aes(x = total.length, ymin = lower95, ymax = upper95),
+              fill = pal[3],
+              alpha = 0.75) +
+  geom_line(aes(x = total.length, y = post.predict),
+            size = 0.5, alpha = 0.8) +
+  geom_point(aes(x = total.length, y = IR, size = N),
+             shape = 1) +
+  facet_wrap( ~ region, ncol = 4,
+              labeller = label_wrap_gen(width = 20)) +
+  labs(x = 'Total Length (cm)',
+       y = 'Ingestion Rate',
+       size = 'Sample Size') +
+  scale_x_continuous(trans = 'log',
+                     breaks = c(1, 10, 100),
+                     limits = c(1, 500)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
+  theme1
+
+marineplot4 <-
+  ggplot(subset(allo_ing, study.habitat == 'Marine')) +
+  geom_ribbon(aes(x = total.length, ymin = lower95, ymax = upper95),
+              fill = pal[2],
+              alpha = 0.75) +
+  geom_line(aes(x = total.length, y = post.predict),
+            size = 0.5, alpha = 0.8) +
+  geom_point(aes(x = total.length, y = IR, size = N),
+             shape = 1) +
+  facet_wrap( ~ region, ncol = 4,
+              labeller = label_wrap_gen(width = 20)) +
+  labs(x = 'Total Length (cm)',
+       y = 'Ingestion Rate',
+       size = 'Sample Size') +
+  scale_x_continuous(trans = 'log',
+                     breaks = c(1, 10, 100),
+                     limits = c(1, 500)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
+  theme1
+
+
+png(
+  'Ingestion Rate Body Size Bayesian Plot.png',
+  width = 14,
+  height = 18,
+  units = 'cm',
+  res = 500
+)
+
+plot_grid(
+  freshplot4,
+  marineplot4,
+  labels = c('A', 'B'),
+  rel_heights = c(1, 2.5),
+  nrow = 2,
+  align = 'v'
+)
+
+dev.off()
+
