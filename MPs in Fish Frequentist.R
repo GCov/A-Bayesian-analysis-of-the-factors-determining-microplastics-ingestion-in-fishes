@@ -970,8 +970,8 @@ dev.off()
 
 ## Plot according to lower limit of detection
 
-png('Lower Limit Plot.png', width = 30, height = 19, 
-    units = 'cm', res = 300)
+png('Lower Limit Plot.png', width = 19, height = 15, 
+    units = 'cm', res = 500)
 
 ggplot(gutdata2) +
   geom_point(aes(
@@ -998,14 +998,6 @@ ggplot(gutdata2) +
   ) +
   coord_flip() +
   scale_colour_continuous_sequential(palette = 'Red-Blue') +
-  theme_few() +
-  theme(
-    text = element_text(size = 14),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 14),
-    strip.text = element_text(size = 16),
-    legend.text = element_text(size = 12),
-    panel.spacing = unit(c(0.5), units = 'cm')
-  )
+  theme1
 
 dev.off()

@@ -345,7 +345,7 @@ run3 <- jags(
 beep(1)
 
 run3mcmc <- as.mcmc(run3)
-xyplot(run3mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))  # looks good
+xyplot(run3mcmc, layout = c(6, ceiling(nvar(run3mcmc)/6)))  # looks good
 
 ## Inference
 
@@ -769,14 +769,14 @@ MAP2 <- as.data.frame(summary(ingrun3mcmc)$statistics)
 ## Extract MAP and HPDIs for the parameters
 Params2 <- data.frame(
   parameter = as.factor(rownames(MAP2)),
-  MAP = MAP2[, 1],
-  lower = HPD2[, 1],
-  upper = HPD2[, 5]
+  MAP = plogis(MAP2[, 1]),
+  lower = plogis(HPD2[, 1]),
+  upper = plogis(HPD2[, 5])
 )
 
 with(ingestion, tapply(as.integer(region), region, mean))
 
-Params2 <- Params2[-39, ]
+Params2 <- Params2[c(1:38), ]
 Params2$parameter <- as.character(Params2$parameter)
 Params2$parameter <- as.factor(Params2$parameter)
 
@@ -803,27 +803,29 @@ Params2$parameter <- mapvalues(
     "Standardized trophic level:Atlantic, Western Central",
     "Standardized trophic level:Europe - Inland Waters",
     "Standardized trophic level:Indian Ocean, Antarctic",
-    "Africa - Inland Waters (region)",
-    "Indian Ocean, Eastern (region)",
-    "Indian Ocean, Western (region)",
-    "Mediterranean and Black Sea (region)",
-    "Pacific, Eastern Central (region)",
-    "Pacific, Northeast (region)",
-    "Pacific, Northwest (region)",
-    "Pacific, Southeast (region)",
-    "Pacific, Southwest (region)",
-    "Pacific, Western Central (region)",
-    "America, North - Inland Waters (region)",
-    "Asia - Inland Waters (region)",
-    "Atlantic, Eastern Central (region)",
-    "Atlantic, Northeast (region)",
-    "Atlantic, Southwest (region)",
-    "Atlantic, Western Central (region)",
-    "Europe - Inland Waters (region)",
-    "Indian Ocean, Antarctic (region)",
+    "Africa - Inland Waters",
+    "Indian Ocean, Eastern",
+    "Indian Ocean, Western",
+    "Mediterranean and Black Sea",
+    "Pacific, Eastern Central",
+    "Pacific, Northeast",
+    "Pacific, Northwest",
+    "Pacific, Southeast",
+    "Pacific, Southwest",
+    "Pacific, Western Central",
+    "America, North - Inland Waters",
+    "Asia - Inland Waters",
+    "Atlantic, Eastern Central",
+    "Atlantic, Northeast",
+    "Atlantic, Southwest",
+    "Atlantic, Western Central",
+    "Europe - Inland Waters",
+    "Indian Ocean, Antarctic",
     "Standardized trophic level"
   )
 )
+
+Params2$sort <- c(nrow(Params2):1)
 
 png('Ingestion HPDI Plot.png', 
     width = 14, 
@@ -832,15 +834,15 @@ png('Ingestion HPDI Plot.png',
     res = 500)
 
 ggplot(Params2) +
-  geom_hline(aes(yintercept = 0),
+  geom_hline(aes(yintercept = 0.5),
              linetype = 'dashed',
              size = 0.5,
              colour = pal[2]) +
-  geom_errorbar(aes(x = parameter,
+  geom_errorbar(aes(x = reorder(parameter, sort),
                     ymin = lower,
                     ymax = upper),
                 size = 0.25) +
-  geom_point(aes(x = parameter,
+  geom_point(aes(x = reorder(parameter, sort),
                  y = MAP),
              size = 1.5,
              shape = 16,
@@ -848,7 +850,10 @@ ggplot(Params2) +
   labs(x = 'Coefficient',
        y = '') +
   coord_flip() +
-  theme1
+  scale_y_continuous(limits = c(0, 1),
+                     expand = c(0, 0)) +
+  theme1 +
+  theme(plot.margin = margin(0.1, 0.5, 0.1, 0.5, unit = 'cm'))
 
 dev.off()
 
@@ -888,7 +893,7 @@ freshplot3 <-
   facet_wrap( ~ region, ncol = 4,
               labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Trophic Level',
-       y = 'Ingestion Rate',
+       y = 'Microplastic Occurrence Rate',
        size = 'Sample Size') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
@@ -906,7 +911,7 @@ marineplot3 <-
   facet_wrap( ~ region, ncol = 4,
               labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Trophic Level',
-       y = 'Ingestion Rate',
+       y = 'Microplastic Occurrence Rate',
        size = 'Sample Size') +
   scale_x_continuous(breaks = seq(from = 2, to = 5, by = 1)) +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25)) +
@@ -1138,7 +1143,7 @@ dev.off()
 set.seed(4516)
 simdata <-
   data.frame(length = runif(1000, 1, 500),
-             min.size = rep(500, 1000))
+             min.size = rep(1, 1000))
 
 simdata$stand.length <-
   (simdata$length - mean(allo$total.length)) /
@@ -1169,6 +1174,12 @@ for(i in 1:1000) {
     beta_min.size * simdata$stand.min.size[i]
   y <- exp(rnorm(1000, mu, sigma)) - 1
   simdata$mean[i] <- median(y)
+  simdata$upper25[i] <- quantile(y, 0.625)
+  simdata$lower25[i] <- quantile(y, 0.375)
+  simdata$upper50[i] <- quantile(y, 0.75)
+  simdata$lower50[i] <- quantile(y, 0.25)
+  simdata$upper75[i] <- quantile(y, 0.875)
+  simdata$lower75[i] <- quantile(y, 0.125)
   simdata$upper95[i] <- quantile(y, 0.975)
   simdata$lower95[i] <- quantile(y, 0.025)
 }
@@ -1194,9 +1205,21 @@ png(
 
 ggplot(simdata) +
   geom_ribbon(aes(x = length,
+                  ymin = lower25,
+                  ymax = upper25),
+              alpha = 0.75, fill = pal[1]) +
+  geom_ribbon(aes(x = length,
+                  ymin = lower50,
+                  ymax = upper50),
+              alpha = 0.5, fill = pal[1]) +
+  geom_ribbon(aes(x = length,
+                  ymin = lower75,
+                  ymax = upper75),
+              alpha = 0.25, fill = pal[1]) +
+  geom_ribbon(aes(x = length,
                   ymin = lower95,
                   ymax = upper95),
-              alpha = 0.5, fill = pal[4]) +
+              alpha = 0.05, fill = pal[1]) +
   geom_line(aes(x = length,
                  y = mean),
             colour = pal[5]) +
@@ -1351,9 +1374,9 @@ allo_ingMAP <- as.data.frame(summary(allo_ingrun3mcmc)$statistics)
 ## Extract MAP and HPDIs for the parameters
 allo_ingParams <- data.frame(
   parameter = as.factor(rownames(allo_ingMAP)),
-  MAP = allo_ingMAP[, 1],
-  lower = allo_ingHPDI[, 1],
-  upper = allo_ingHPDI[, 5]
+  MAP = plogis(allo_ingMAP[, 1]),
+  lower = plogis(allo_ingHPDI[, 1]),
+  upper = plogis(allo_ingHPDI[, 5])
 )
 
 allo_ingParams <- allo_ingParams[-35, ]
@@ -1384,41 +1407,43 @@ allo_ingParams$parameter <- mapvalues(
     "Standardized total length:Europe - Inland Waters",
     "Standardized total length:Indian Ocean, Antarctic",
     "Standardized Total Length (cm)",
-    "Africa - Inland Waters (region)",
-    "Indian Ocean, Eastern (region)",
-    "Indian Ocean, Western (region)",
-    "Mediterranean and Black Sea (region)",
-    "Pacific, Eastern Central (region)",
-    "Pacific, Northwest (region)",
-    "Pacific, Southeast (region)",
-    "Pacific, Southwest (region)",
-    "America, North - Inland Waters (region)",
-    "Asia - Inland Waters (region)",
-    "Atlantic, Eastern Central (region)",
-    "Atlantic, Northeast (region)",
-    "Atlantic, Southwest (region)",
-    "Atlantic, Western Central (region)",
-    "Europe - Inland Waters (region)",
-    "Indian Ocean, Antarctic (region)"
+    "Africa - Inland Waters",
+    "Indian Ocean, Eastern",
+    "Indian Ocean, Western",
+    "Mediterranean and Black Sea",
+    "Pacific, Eastern Central",
+    "Pacific, Northwest",
+    "Pacific, Southeast",
+    "Pacific, Southwest",
+    "America, North - Inland Waters",
+    "Asia - Inland Waters",
+    "Atlantic, Eastern Central",
+    "Atlantic, Northeast",
+    "Atlantic, Southwest",
+    "Atlantic, Western Central",
+    "Europe - Inland Waters",
+    "Indian Ocean, Antarctic"
   )
 )
 
+allo_ingParams$sort <- c(nrow(allo_ingParams):1)
+
 png('Ingestion Body Size HPDI Plot.png', 
     width = 14, 
-    height = 15, 
+    height = 13, 
     units = 'cm', 
     res = 500)
 
 ggplot(allo_ingParams) +
-  geom_hline(aes(yintercept = 0),
+  geom_hline(aes(yintercept = 0.5),
              linetype = 'dashed',
              size = 0.5,
              colour = pal[2]) +
-  geom_errorbar(aes(x = parameter,
+  geom_errorbar(aes(x = reorder(parameter, sort),
                     ymin = lower,
                     ymax = upper),
                 size = 0.25) +
-  geom_point(aes(x = parameter,
+  geom_point(aes(x = reorder(parameter, sort),
                  y = MAP),
              size = 1,
              shape = 16,
@@ -1426,7 +1451,10 @@ ggplot(allo_ingParams) +
   labs(x = 'Parameter',
        y = '') +
   coord_flip() +
-  theme1
+  scale_y_continuous(limits = c(0, 1),
+                     expand = c(0, 0)) +
+  theme1 +
+  theme(plot.margin = margin(0.1, 0.5, 0.1, 0.5, unit = 'cm'))
 
 dev.off()
 
@@ -1469,7 +1497,7 @@ freshplot4 <-
   facet_wrap( ~ region, ncol = 4,
               labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Total Length (cm)',
-       y = 'Ingestion Rate',
+       y = 'Microplastic Occurrence Rate',
        size = 'Sample Size') +
   scale_x_continuous(trans = 'log',
                      breaks = c(1, 10, 100),
@@ -1489,7 +1517,7 @@ marineplot4 <-
   facet_wrap( ~ region, ncol = 4,
               labeller = label_wrap_gen(width = 20)) +
   labs(x = 'Total Length (cm)',
-       y = 'Ingestion Rate',
+       y = 'Microplastic Occurrence Rate',
        size = 'Sample Size') +
   scale_x_continuous(trans = 'log',
                      breaks = c(1, 10, 100),
@@ -1501,7 +1529,7 @@ marineplot4 <-
 png(
   'Ingestion Rate Body Size Bayesian Plot.png',
   width = 14,
-  height = 18,
+  height = 15,
   units = 'cm',
   res = 500
 )
@@ -1517,3 +1545,275 @@ plot_grid(
 
 dev.off()
 
+
+#### Family Model ####
+
+for(i in 1:nrow(allo)) {
+  allo$famcount[i] <- nrow(subset(allo, family == family[i]))
+}
+
+fam <- subset(allo, famcount >= 10)
+
+nrow(fam)  # 180 data points
+summary(fam$total.length)  # 1.12-210.83 cm total length
+length(unique(fam$family))
+length(unique(fam$species))  # 133 species
+length(unique(fam$study))  # 46 studies
+
+fam$family <- as.character(fam$family)
+fam$family <- as.factor(fam$family)
+
+## Model
+
+## Specify model
+
+fammod <- function()
+{
+  # Likelihood
+  for (i in 1:N)
+  {
+    y[i] ~ dnorm(mu[i], tau)
+    mu[i] <-
+      alpha + beta_length * length[i] + beta_min.size * min.size[i] +
+      beta_sample.size * sample.size[i] + beta_family[family[i]] + 
+      beta_interaction[family[i]] * length[i]
+  }
+  
+  # Prior
+  for (j in 1:Nfamily)
+  {
+    beta_family[j] ~ dnorm(mu_family, tau_family)
+    beta_interaction[j] ~ dnorm(mu_interaction, tau_interaction)
+  }
+  alpha ~ dexp(1)
+  sigma ~ dexp(1)
+  tau <- 1 / (sigma * sigma)
+  beta_length ~ dnorm(0, 1)
+  beta_min.size ~ dnorm(-1, 1)
+  beta_sample.size ~ dnorm(0, 1)
+  mu_family ~ dnorm(0, 1)
+  sigma_family ~ dexp(1)
+  tau_family <- 1 / (sigma_family * sigma_family)
+  mu_interaction ~ dnorm(0, 1)
+  sigma_interaction ~ dexp(1)
+  tau_interaction <- 1 / (sigma_interaction * sigma_interaction)
+}
+
+## Generate initial values for MCMC
+
+faminit <- function()
+{
+  list(
+    "sigma" = 1,
+    "alpha" = 1,
+    "beta_length" = rnorm(1),
+    "beta_min.size" = rnorm(1),
+    "beta_sample.size" = rnorm(1),
+    "mu_family" = rnorm(1),
+    "sigma_family" = 1,
+    "mu_interaction" = rnorm(1),
+    "sigma_interaction" = 1
+  )
+}
+
+## Keep track of parameters
+
+famparam <- c("sigma", "alpha", "beta_length", "beta_min.size", 
+              "beta_sample.size", "beta_family", "beta_interaction")
+
+## Specify data
+
+famdata <-
+  list(
+    y = log(fam$Mpsgut + 1),
+    length = as.numeric(scale(fam$total.length, center = TRUE)),
+    min.size = as.numeric(scale(fam$min.size, center = TRUE)),
+    sample.size = as.numeric(scale(fam$N, center = TRUE)),
+    family = as.integer(fam$family),
+    N = nrow(fam),
+    Nfamily = max(as.integer(fam$family))
+  )
+
+## Run the model
+famrun1 <- jags(
+  data = famdata,
+  inits = faminit,
+  parameters.to.save = famparam,
+  n.chains = 3,
+  n.iter = 2000,
+  n.burnin = 1000,
+  n.thin = 1,
+  jags.seed = 123,
+  model = fammod
+)
+beep(1)
+
+famrun1mcmc <- as.mcmc(famrun1)
+xyplot(famrun1mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
+
+## Increase number of iterations to 10,000 
+
+famrun2 <- jags(
+  data = famdata,
+  inits = faminit,
+  parameters.to.save = famparam,
+  n.chains = 3,
+  n.iter = 10000,
+  n.burnin = 1000,
+  n.thin = 8,
+  jags.seed = 123,
+  model = fammod
+)
+beep(1)
+
+famrun2mcmc <- as.mcmc(famrun2)
+xyplot(famrun2mcmc, layout = c(6, ceiling(nvar(famrun2mcmc)/6)))
+
+## Increase number of iterations to 200,000
+
+famrun3 <- jags(
+  data = famdata,
+  inits = faminit,
+  parameters.to.save = famparam,
+  n.chains = 3,
+  n.iter = 200000,
+  n.burnin = 2000,
+  n.thin = 44,
+  jags.seed = 123,
+  model = fammod
+)
+beep(1)
+
+famrun3
+famrun3mcmc <- as.mcmc(famrun3)
+xyplot(famrun3mcmc, layout = c(6, ceiling(nvar(famrun3mcmc)/6)))
+
+## Inference
+
+famHPD <- as.data.frame(summary(famrun3mcmc)$quantiles)
+
+famMAP <- as.data.frame(summary(famrun3mcmc)$statistics)
+
+## Extract MAP and HPDIs for the parameters
+fam.par.est <- data.frame(
+  parameter = as.factor(rownames(famMAP)),
+  MAP = famMAP[, 1],
+  lower = famHPD[, 1],
+  upper = famHPD[, 5]
+)
+
+with(fam, tapply(as.integer(family), family, mean))
+
+fam.par.est <- fam.par.est[-c(29:30), ]
+fam.par.est$parameter <- as.character(fam.par.est$parameter)
+fam.par.est$parameter <- as.factor(fam.par.est$parameter)
+
+
+fam.par.est$parameter <- 
+  mapvalues(fam.par.est$parameter,
+            from = levels(fam.par.est$parameter),
+            to = c("Intercept",
+                   "Acanthuridae",
+                   "Sciaenidae",
+                   "Scombridae",
+                   "Sparidae",
+                   "Carangidae",
+                   "Clupeidae",
+                   "Cyprinidae",
+                   "Engraulidae",
+                   "Gerreidae",
+                   "Gobiidae",
+                   "Mugilidae",
+                   "Mullidae",
+                   "Standarized total length:Acanthuridae",
+                   "Standarized total length:Sciaenidae",
+                   "Standarized total length:Scombridae",
+                   "Standarized total length:Sparidae",
+                   "Standarized total length:Carangidae",
+                   "Standarized total length:Clupeidae",
+                   "Standarized total length:Cyprinidae",
+                   "Standarized total length:Engraulidae",
+                   "Standarized total length:Gerreidae",
+                   "Standarized total length:Gobiidae",
+                   "Standarized total length:Mugilidae",
+                   "Standarized total length:Mullidae",
+                   "Standarized total length (cm)",
+                   "Standardized lowest detectable particle size (microns)",
+                   "Standardized sample size"))
+
+png('Gut Content Family HPDI Plot.png', 
+    width = 14, 
+    height = 10, 
+    units = 'cm', 
+    res = 500)
+
+ggplot(fam.par.est) +
+  geom_hline(aes(yintercept = 0),
+             linetype = 'dashed',
+             size = 0.5,
+             colour = pal[2]) +
+  geom_errorbar(aes(x = reorder(parameter, as.numeric(rownames(fam.par.est))),
+                    ymin = lower,
+                    ymax = upper),
+                size = 0.25) +
+  geom_point(aes(x = reorder(parameter, as.numeric(rownames(fam.par.est))),
+                 y = MAP),
+             size = 1,
+             shape = 16,
+             colour = pal[3]) +
+  labs(x = 'Coefficient',
+       y = '') +
+  coord_flip() +
+  theme1
+
+dev.off()
+
+## Run MCMC again and estimate mu
+
+famparam2 <- "mu"
+
+famrun4 <- jags(
+  data = famdata,
+  inits = faminit,
+  parameters.to.save = famparam2,
+  n.chains = 3,
+  n.iter = 200000,
+  n.burnin = 2000,
+  n.thin = 44,
+  jags.seed = 123,
+  model = fammod
+)
+beep(1)
+
+famrun4
+famrun4mcmc <- as.mcmc(famrun4)
+
+fam$post.predict <-
+  exp(as.data.frame(summary(famrun4mcmc)$statistics)[2:181, 1]) - 1
+fam$lower95 <-
+  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 1]) - 1
+fam$upper95 <-
+  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 5]) - 1
+
+fam$lower95[fam$lower95 < 0] <- 0
+
+png('Gut Content Family Bayesian Plot.png', width = 14, height = 16, units = 'cm', 
+    res = 500)
+
+ggplot(fam) +
+  geom_ribbon(aes(x = total.length, ymin = lower95, ymax = upper95), 
+              alpha = 0.75, fill = pal[2]) +
+  geom_line(aes(x = total.length, y = post.predict),
+            size = 0.5, alpha = 0.8) +
+  geom_point(aes(x = total.length, y = Mpsgut),
+             shape = 1, size = 0.5) +
+  facet_wrap(~ family) +
+  labs(x = 'Total Length (cm)',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  scale_x_continuous(trans = 'log', breaks = c(1, 10, 100)) +
+  scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
+  theme1
+
+dev.off()
