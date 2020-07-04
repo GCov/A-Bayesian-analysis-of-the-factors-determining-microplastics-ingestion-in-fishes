@@ -9,6 +9,7 @@ library(plyr)
 library(lattice)
 library(colorspace)
 library(beepr)
+library(ggridges)
 
 #### Set up some aesthetics ####
 
@@ -206,7 +207,7 @@ gutdata$region <- as.factor(gutdata$region)
 
 ## Specify model
 
-jagsmod1 <- function()
+TLgutmod <- function()
 {
   # Likelihood
   for (i in 1:N)
@@ -251,7 +252,7 @@ jagsmod1 <- function()
 
 ## Generate initial values for MCMC
 
-init1 <- function()
+TLgutinit <- function()
 {
   list(
     "sigma" = 1,
@@ -272,13 +273,13 @@ init1 <- function()
 
 ## Keep track of parameters
 
-param1 <- c("sigma", "alpha", "beta_TL", "beta_min.size", "beta_sample.size", 
-            "beta_PID", "beta_exclude.fibs", "beta_blanks", "beta_environment",
-            "beta_region", "beta_interaction")
+TLgutparam <- c("sigma", "alpha", "beta_TL", "beta_min.size", "beta_sample.size", 
+                "beta_PID", "beta_exclude.fibs", "beta_blanks", "beta_environment",
+                "beta_region", "beta_interaction")
 
 ## Specify data
 
-jagsdata1 <-
+TLgutdata <-
   list(
     y = log(gutdata$Mpsgut + 1),
     TL = as.numeric(scale(gutdata$TL, center = TRUE)),
@@ -296,38 +297,38 @@ jagsdata1 <-
 
 ## Run the model
 run1 <- jags(
-  data = jagsdata1,
-  inits = init1,
-  parameters.to.save = param1,
+  data = TLgutdata,
+  inits = TLgutinit,
+  parameters.to.save = TLgutparam,
   n.chains = 3,
   n.iter = 2000,
   n.burnin = 1000,
   n.thin = 1,
   jags.seed = 123,
-  model = jagsmod1
+  model = TLgutmod
 )
-beep(1)
 
+run1
 run1mcmc <- as.mcmc(run1)
 xyplot(run1mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
 
-## Extend burnin to 5000 and up number of iterations to 10,000
+## Extend number of iterations to 10,000
 
 run2 <- jags(
-  data = jagsdata1,
-  inits = init1,
-  parameters.to.save = param1,
+  data = TLgutdata,
+  inits = TLgutinit,
+  parameters.to.save = TLgutparam,
   n.chains = 3,
   n.iter = 10000,
-  n.burnin = 5000,
-  n.thin = 5,
+  n.burnin = 1000,
+  n.thin = 2,
   jags.seed = 123,
-  model = jagsmod1
+  model = TLgutmod
 )
-beep(1)
 
 run2mcmc <- as.mcmc(run2)
 xyplot(run2mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
+beep(8)
 
 ## Increase iteration to 500000 and burnin to 10000
 
@@ -415,25 +416,25 @@ Params1$parameter <- mapvalues(
     "Standardized lowest detectable particle size (microns)",
     "Polymer ID not used",
     "Polymer ID used",
-    "Africa - Inland Waters (region)",
-    "Indian Ocean, Antarctic (region)",
-    "Indian Ocean, Eastern (region)",
-    "Indian Ocean, Western (region)",
-    "Mediterranean and Black Sea (region)",
-    "Pacific, Eastern Central (region)",
-    "Pacific, Northeast (region)",
-    "Pacific, Northwest (region)",
-    "Pacific, Southeast (region)",
-    "Pacific, Southwest (region)",
-    "Pacific, Western Central (region)",
-    "America, North - Inland Waters (region)",
-    "America, South - Inland Waters (region)",
-    "Asia - Inland Waters (region)",
-    "Atlantic, Eastern Central (region)",
-    "Atlantic, Northeast (region)",
-    "Atlantic, Southwest (region)",
-    "Atlantic, Western Central (region)",
-    "Europe - Inland Waters (region)",
+    "Africa - Inland Waters (FAO area)",
+    "Indian Ocean, Antarctic (FAO area)",
+    "Indian Ocean, Eastern (FAO area)",
+    "Indian Ocean, Western (FAO area)",
+    "Mediterranean and Black Sea (FAO area)",
+    "Pacific, Eastern Central (FAO area)",
+    "Pacific, Northeast (FAO area)",
+    "Pacific, Northwest (FAO area)",
+    "Pacific, Southeast (FAO area)",
+    "Pacific, Southwest (FAO area)",
+    "Pacific, Western Central (FAO area)",
+    "America, North - Inland Waters (FAO area)",
+    "America, South - Inland Waters (FAO area)",
+    "Asia - Inland Waters (FAO area)",
+    "Atlantic, Eastern Central (FAO area)",
+    "Atlantic, Northeast (FAO area)",
+    "Atlantic, Southwest (FAO area)",
+    "Atlantic, Western Central (FAO area)",
+    "Europe - Inland Waters (FAO area)",
     "Standardized sample size (number of fish)",
     "Standardized trophic level"
   )
@@ -829,7 +830,7 @@ Params2$sort <- c(nrow(Params2):1)
 
 png('Ingestion HPDI Plot.png', 
     width = 14, 
-    height = 15, 
+    height = 12, 
     units = 'cm', 
     res = 500)
 
@@ -1198,7 +1199,7 @@ simdata$predict <-
 png(
   'Allometry Predictions Plot.png',
   width = 9,
-  height = 9,
+  height = 8,
   units = 'cm',
   res = 500
 )
@@ -1430,7 +1431,7 @@ allo_ingParams$sort <- c(nrow(allo_ingParams):1)
 
 png('Ingestion Body Size HPDI Plot.png', 
     width = 14, 
-    height = 13, 
+    height = 11, 
     units = 'cm', 
     res = 500)
 
@@ -1743,7 +1744,7 @@ fam.par.est$parameter <-
 
 png('Gut Content Family HPDI Plot.png', 
     width = 14, 
-    height = 10, 
+    height = 9, 
     units = 'cm', 
     res = 500)
 
@@ -1817,3 +1818,60 @@ ggplot(fam) +
   theme1
 
 dev.off()
+
+## Plot according to lower limit of detection
+
+png('Lower Limit Plot.png', width = 19, height = 10, 
+    units = 'cm', res = 500)
+
+ggplot(gutdata2) +
+  geom_point(aes(
+    x = reorder(region, Mpsgut, mean),
+    y = Mpsgut,
+    size = N,
+    colour = min.size
+  ),
+  alpha = 0.5) +
+  labs(
+    x = 'FAO Area',
+    y = expression(paste(
+      'Microplastic Concentration (particles ' ~
+        ind ^ -1 * ')'
+    )),
+    colour = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
+    size = 'Sample Size'
+  ) +
+  coord_cartesian(ylim = c(0, 35)) +
+  scale_y_continuous(
+    breaks = c(0, 1, 5, 10, 20, 30),
+    expand = c(0, 0.05),
+    trans = 'log1p'
+  ) +
+  coord_flip() +
+  scale_colour_continuous_sequential(palette = 'Red-Blue') +
+  theme1
+
+dev.off()
+
+## Plot MP concentrations by region
+
+png('MP Concentration by Region.png', width = 14, height = 10, 
+    units = 'cm', res = 500)
+
+ggplot(gutdata) + 
+  geom_density_ridges(aes(x = Mpsgut,
+                          y = reorder(region, Mpsgut, mean)),
+                      fill = pal[2],
+                      alpha = 0.8,
+                      scale = 0.9) +
+  geom_point(aes(x = Mpsgut,
+                 y = region),
+             size = 1, alpha = 0.3, colour = pal[5]) +
+  labs(x = expression(paste(
+         "Microplalolstic Concentration (particles '" ~
+           ind ^ -1 * ")")),
+       y = "FAO Area") +
+  theme1
+
+dev.off()
+

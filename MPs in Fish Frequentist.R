@@ -968,36 +968,4 @@ dev.off()
 
 
 
-## Plot according to lower limit of detection
 
-png('Lower Limit Plot.png', width = 19, height = 15, 
-    units = 'cm', res = 500)
-
-ggplot(gutdata2) +
-  geom_point(aes(
-    x = reorder(region, Mpsgut, mean),
-    y = Mpsgut,
-    size = N,
-    colour = min.size
-  ),
-  alpha = 0.5) +
-  labs(
-    x = 'Region',
-    y = expression(paste(
-      'Microplastic Concentration (particles ' ~
-        ind ^ -1 * ')'
-    )),
-    colour = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
-    size = 'Sample Size'
-  ) +
-  coord_cartesian(ylim = c(0, 35)) +
-  scale_y_continuous(
-    breaks = c(0, 1, 5, 10, 20, 30),
-    expand = c(0, 0),
-    trans = 'log1p'
-  ) +
-  coord_flip() +
-  scale_colour_continuous_sequential(palette = 'Red-Blue') +
-  theme1
-
-dev.off()
