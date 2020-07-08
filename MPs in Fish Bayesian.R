@@ -10,6 +10,18 @@ library(lattice)
 library(colorspace)
 library(beepr)
 library(ggridges)
+library(bayesplot)
+library(reshape2)
+
+extract.post <- function(x){
+  out <- data.frame(x$BUGSoutput$sims.list)
+  long <- melt(out)
+  long <- long[long$variable != "deviance" &
+                 long$variable != "sigma",]
+  long$variable <- as.character(long$variable)
+  long$variable <- as.factor(long$variable)
+  long
+}
 
 #### Set up some aesthetics ####
 
@@ -370,10 +382,8 @@ with(gutdata, tapply(as.integer(region), region, mean))
 Params1$parameter <- as.character(Params1$parameter)
 Params1$parameter <- as.factor(Params1$parameter)
 
-Params1$parameter <- mapvalues(
-  Params1$parameter,
-  from = levels(Params1$parameter),
-  to = c(
+gutmod_paramnames <-
+  c(
     "Africa - Inland Waters (FAO area)",
     "Indian Ocean, Antarctic (FAO area)",
     "Indian Ocean, Eastern (FAO area)",
@@ -433,10 +443,14 @@ Params1$parameter <- mapvalues(
     "Polymer ID not used",
     "Polymer ID used"
   )
-)
+
+Params1$parameter <- mapvalues(Params1$parameter,
+                               from = levels(Params1$parameter),
+                               to = gutmod_paramnames)
 
 Params1$order <- c(nrow(Params1):1)
 
+## HDPI plots
 png('Gut Content HPDI Plot.png', 
     width = 14, 
     height = 15, 
@@ -448,11 +462,11 @@ ggplot(Params1) +
              linetype = 'dashed',
              size = 0.5,
              colour = pal[2]) +
-  geom_errorbar(aes(x = reorder(parameter, as.numeric(rownames(Params1))),
+  geom_errorbar(aes(x = reorder(parameter, order),
                     ymin = lower,
                     ymax = upper),
                 size = 0.25) +
-  geom_point(aes(x = reorder(parameter, as.numeric(rownames(Params1))),
+  geom_point(aes(x = reorder(parameter, order),
                  y = MAP),
              size = 1,
              shape = 16,
@@ -460,6 +474,44 @@ ggplot(Params1) +
   labs(x = 'Coefficient',
        y = '') +
   coord_flip() +
+  theme1
+
+dev.off()
+
+## Posterior density plots
+
+run3long <- extract.post(run3)
+
+run3long$variable <- mapvalues(run3long$variable,
+                               from = levels(run3long$variable),
+                               to = gutmod_paramnames)
+  
+run3long$order <- c(nrow(run3long):1)
+
+png(
+  'Gut Content Posteriors Plot.png',
+  width = 14,
+  height = 19,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(run3long) +
+  geom_density_ridges(
+    aes(x = value,
+        y = reorder(variable, order, mean)),
+    fill = pal[1],
+    colour = pal[5],
+    alpha = 0.75
+  ) +
+  geom_vline(
+    aes(xintercept = 0),
+    linetype = 'dashed',
+    size = 0.5,
+    colour = pal[3]
+  ) +
+  labs(x = "",
+       y = "Parameter") +
   theme1
 
 dev.off()
@@ -756,10 +808,8 @@ Params2 <- Params2[c(1:36), ]
 Params2$parameter <- as.character(Params2$parameter)
 Params2$parameter <- as.factor(Params2$parameter)
 
-Params2$parameter <- mapvalues(
-  Params2$parameter,
-  from = levels(Params2$parameter),
-  to = c(
+ingrunparams <-
+  c(
     "Africa - Inland Waters",
     "Indian Ocean, Eastern",
     "Indian Ocean, Western",
@@ -797,6 +847,11 @@ Params2$parameter <- mapvalues(
     "Standardized trophic level:Europe - Inland Waters",
     "Standardized trophic level:Indian Ocean, Antarctic"
   )
+
+Params2$parameter <- mapvalues(
+  Params2$parameter,
+  from = levels(Params2$parameter),
+  to = ingrunparams
 )
 
 Params2$sort <- c(nrow(Params2):1)
@@ -826,6 +881,44 @@ ggplot(Params2) +
   coord_flip() +
   theme1 +
   theme(plot.margin = margin(0.1, 0.5, 0.1, 0.5, unit = 'cm'))
+
+dev.off()
+
+## Posterior density plots
+
+ingrun2long <- extract.post(ingrun2)
+
+ingrun2long$variable <- mapvalues(ingrun2long$variable,
+                               from = levels(ingrun2long$variable),
+                               to = ingrunparams)
+
+ingrun2long$order <- c(nrow(ingrun2long):1)
+
+png(
+  'Ingestion Posteriors Plot.png',
+  width = 14,
+  height = 14,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(ingrun2long) +
+  geom_density_ridges(
+    aes(x = value,
+        y = reorder(variable, order, mean)),
+    fill = pal[1],
+    colour = pal[5],
+    alpha = 0.75
+  ) +
+  geom_vline(
+    aes(xintercept = 0),
+    linetype = 'dashed',
+    size = 0.5,
+    colour = pal[3]
+  ) +
+  labs(x = "",
+       y = "Parameter") +
+  theme1
 
 dev.off()
 
@@ -1048,6 +1141,48 @@ ggplot(sizeParams) +
   labs(x = 'Parameter',
        y = '') +
   coord_flip() +
+  theme1
+
+dev.off()
+
+## Posterior density plots
+
+sizerun2long <- extract.post(sizerun2)
+
+sizerun2long$variable <- mapvalues(sizerun2long$variable,
+                                  from = levels(sizerun2long$variable),
+                                  to = c(
+                                    "Intercept",
+                                    "Standardized Total Length (cm)",
+                                    "Standardized lowest detectable particle size (microns)"
+                                  ))
+
+sizerun2long$order <- c(nrow(sizerun2long):1)
+
+png(
+  'Body Size Model Posteriors Plot.png',
+  width = 14,
+  height = 5,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(sizerun2long) +
+  geom_density_ridges(
+    aes(x = value,
+        y = reorder(variable, order, mean)),
+    fill = pal[1],
+    colour = pal[5],
+    alpha = 0.75
+  ) +
+  geom_vline(
+    aes(xintercept = 0),
+    linetype = 'dashed',
+    size = 0.5,
+    colour = pal[3]
+  ) +
+  labs(x = "",
+       y = "Parameter") +
   theme1
 
 dev.off()
@@ -1338,10 +1473,8 @@ sizeingParams$parameter <- as.factor(sizeingParams$parameter)
 
 with(sizeing, tapply(as.integer(region), region, mean))
 
-sizeingParams$parameter <- mapvalues(
-  sizeingParams$parameter,
-  from = levels(sizeingParams$parameter),
-  to = c(
+sizeing_paramNames <-
+  c(
     "Africa - Inland Waters",
     "Indian Ocean, Eastern",
     "Indian Ocean, Western",
@@ -1375,7 +1508,10 @@ sizeingParams$parameter <- mapvalues(
     "Standardized total length:Europe - Inland Waters",
     "Standardized total length:Indian Ocean, Antarctic"
   )
-)
+
+sizeingParams$parameter <- mapvalues(sizeingParams$parameter,
+                                     from = levels(sizeingParams$parameter),
+                                     to = sizeing_paramNames)
 
 sizeingParams$sort <- c(nrow(sizeingParams):1)
 
@@ -1409,6 +1545,44 @@ dev.off()
 
 ## Body size doesn't seem to affect ingestion
 ## Backs up similar patterns by region
+
+## Posterior density plots
+
+sizeingrun2long <- extract.post(sizeingrun2)
+
+sizeingrun2long$variable <- mapvalues(sizeingrun2long$variable,
+                                   from = levels(sizeingrun2long$variable),
+                                   to = sizeing_paramNames)
+
+sizeingrun2long$order <- c(nrow(sizeingrun2long):1)
+
+png(
+  'Body Size Ingestion Model Posteriors Plot.png',
+  width = 14,
+  height = 10,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(sizeingrun2long) +
+  geom_density_ridges(
+    aes(x = value,
+        y = reorder(variable, order, mean)),
+    fill = pal[1],
+    colour = pal[5],
+    alpha = 0.75
+  ) +
+  geom_vline(
+    aes(xintercept = 0),
+    linetype = 'dashed',
+    size = 0.5,
+    colour = pal[3]
+  ) +
+  labs(x = "",
+       y = "Parameter") +
+  theme1
+
+dev.off()
 
 ## Rerun model to extract p
 sizeingparam2 <- c("p")
@@ -1607,7 +1781,8 @@ famrun2 <- jags(
 
 famrun2
 famrun2mcmc <- as.mcmc(famrun2)
-xyplot(famrun2mcmc, layout = c(6, ceiling(nvar(famrun2mcmc)/6)))
+mcmc_trace(famrun2mcmc)
+mcmc_dens(famrun2mcmc)
 
 ## Inference
 
@@ -1629,35 +1804,38 @@ fam.par.est <- fam.par.est[-26, ]
 fam.par.est$parameter <- as.character(fam.par.est$parameter)
 fam.par.est$parameter <- as.factor(fam.par.est$parameter)
 
+famrun_paramNames <-
+  c("Acanthuridae",
+    "Sciaenidae",
+    "Scombridae",
+    "Sparidae",
+    "Carangidae",
+    "Clupeidae",
+    "Cyprinidae",
+    "Engraulidae",
+    "Gerreidae",
+    "Gobiidae",
+    "Mugilidae",
+    "Mullidae",
+    "Standarized total length:Acanthuridae",
+    "Standarized total length:Sciaenidae",
+    "Standarized total length:Scombridae",
+    "Standarized total length:Sparidae",
+    "Standarized total length:Carangidae",
+    "Standarized total length:Clupeidae",
+    "Standarized total length:Cyprinidae",
+    "Standarized total length:Engraulidae",
+    "Standarized total length:Gerreidae",
+    "Standarized total length:Gobiidae",
+    "Standarized total length:Mugilidae",
+    "Standarized total length:Mullidae",
+    "Standardized lowest detectable particle size (microns)")
 
-fam.par.est$parameter <- 
+
+fam.par.est$parameter <-
   mapvalues(fam.par.est$parameter,
             from = levels(fam.par.est$parameter),
-            to = c("Acanthuridae",
-                   "Sciaenidae",
-                   "Scombridae",
-                   "Sparidae",
-                   "Carangidae",
-                   "Clupeidae",
-                   "Cyprinidae",
-                   "Engraulidae",
-                   "Gerreidae",
-                   "Gobiidae",
-                   "Mugilidae",
-                   "Mullidae",
-                   "Standarized total length:Acanthuridae",
-                   "Standarized total length:Sciaenidae",
-                   "Standarized total length:Scombridae",
-                   "Standarized total length:Sparidae",
-                   "Standarized total length:Carangidae",
-                   "Standarized total length:Clupeidae",
-                   "Standarized total length:Cyprinidae",
-                   "Standarized total length:Engraulidae",
-                   "Standarized total length:Gerreidae",
-                   "Standarized total length:Gobiidae",
-                   "Standarized total length:Mugilidae",
-                   "Standarized total length:Mullidae",
-                   "Standardized lowest detectable particle size (microns)"))
+            to = famrun_paramNames)
 
 png('Gut Content Family HPDI Plot.png', 
     width = 14, 
@@ -1682,6 +1860,44 @@ ggplot(fam.par.est) +
   labs(x = 'Coefficient',
        y = '') +
   coord_flip() +
+  theme1
+
+dev.off()
+
+## Posterior density plots
+
+famrun2long <- extract.post(famrun2)
+
+famrun2long$variable <- mapvalues(famrun2long$variable,
+                                      from = levels(famrun2long$variable),
+                                      to = famrun_paramNames)
+
+famrun2long$order <- c(nrow(famrun2long):1)
+
+png(
+  'Family Model Posteriors Plot.png',
+  width = 14,
+  height = 10,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(famrun2long) +
+  geom_density_ridges(
+    aes(x = value,
+        y = reorder(variable, value, mean)),
+    fill = pal[1],
+    colour = pal[5],
+    alpha = 0.75
+  ) +
+  geom_vline(
+    aes(xintercept = 0),
+    linetype = 'dashed',
+    size = 0.5,
+    colour = pal[3]
+  ) +
+  labs(x = "",
+       y = "Parameter") +
   theme1
 
 dev.off()
@@ -1718,7 +1934,7 @@ png('Gut Content Family Bayesian Plot.png', width = 9, height = 10, units = 'cm'
 
 ggplot(fam) +
   geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
-              alpha = 0.75, fill = pal[4]) +
+              alpha = 0.75, fill = pal[3]) +
   geom_line(aes(x = min.size, y = post.predict),
             size = 0.5, alpha = 0.8) +
   geom_point(aes(x = min.size, y = Mpsgut),
