@@ -1247,102 +1247,104 @@ ggplot(size) +
 
 dev.off()
 
-## Simulate results for 1 micron filter size
+## Simulate results for 1, 100, and 500 micron filter sizes
 
-set.seed(4516)
-simdata <-
-  data.frame(length = runif(1000, 1, 500),
-             min.size = rep(1, 1000))
+size.post <- data.frame(sizerun2$BUGSoutput$sims.list)
 
-simdata$stand.length <-
-  (simdata$length - mean(size$total.length)) /
-  sd(size$total.length - mean(size$total.length))
+set.seed(5251)
 
-simdata$stand.min.size <-
-  (simdata$min.size - mean(size$min.size)) /
-  sd(size$min.size - mean(size$min.size))
-
-simdata$mean <- NA
-simdata$upper95 <- NA
-simdata$lower95 <- NA
-
-alpha <- rexp(1000, 
-              summary(sizerun2mcmc)$statistics[1, 1])
-beta_length <- rnorm(1000, 
-                     summary(sizerun2mcmc)$statistics[2,1],
-                     summary(sizerun2mcmc)$statistics[2,2])
-beta_min.size <- rnorm(1000, 
-                       summary(sizerun2mcmc)$statistics[3,1],
-                       summary(sizerun2mcmc)$statistics[3,2])
-sigma <- dexp(1000,
-              summary(sizerun2mcmc)$statistics[5,1])
-
-for(i in 1:1000) {
-  mu <-
-    alpha + beta_length * simdata$stand.length[i] + 
-    beta_min.size * simdata$stand.min.size[i]
-  y <- exp(rnorm(1000, mu, sigma)) - 1
-  simdata$mean[i] <- median(y)
-  simdata$upper25[i] <- quantile(y, 0.625)
-  simdata$lower25[i] <- quantile(y, 0.375)
-  simdata$upper50[i] <- quantile(y, 0.75)
-  simdata$lower50[i] <- quantile(y, 0.25)
-  simdata$upper75[i] <- quantile(y, 0.875)
-  simdata$lower75[i] <- quantile(y, 0.125)
-  simdata$upper95[i] <- quantile(y, 0.975)
-  simdata$lower95[i] <- quantile(y, 0.025)
+generate.size.sim <- function(min.size, post, data) {
+  size.sim <- 
+    data.frame(length = seq(from = 1, to = 500, length.out = 5000),
+               min.size = rep(min.size, 5000))
+  
+  size.sim$stand.length <-
+    (size.sim$length - mean(data$total.length)) /
+    sd(data$total.length - mean(data$total.length))
+  
+  size.sim$stand.min.size <-
+    (size.sim$min.size - mean(data$min.size)) /
+    sd(data$min.size - mean(data$min.size))
+  
+  for (i in 1:5000) {
+    mu <-
+      post$alpha + post$beta_length * size.sim$stand.length[i] +
+      post$beta_min.size * size.sim$stand.min.size[i]
+    y <- exp(rnorm(5000, mu, post$sigma)) - 1
+    size.sim$mean[i] <- mean(exp(mu) - 1)
+    size.sim$upper25[i] <- quantile(y, 0.625)
+    size.sim$lower25[i] <- quantile(y, 0.375)
+    size.sim$upper50[i] <- quantile(y, 0.75)
+    size.sim$lower50[i] <- quantile(y, 0.25)
+    size.sim$upper75[i] <- quantile(y, 0.875)
+    size.sim$lower75[i] <- quantile(y, 0.125)
+    size.sim$upper95[i] <- quantile(y, 0.975)
+    size.sim$lower95[i] <- quantile(y, 0.025)
+    size.sim$sample[i] <- sample(y, 1)
+  }
+  size.sim
 }
 
-simdata$predict <-
-  exp(
-    rnorm(
-      1000,
-      alpha +
-        beta_length * simdata$stand.length +
-        beta_min.size * simdata$stand.min.size,
-      sigma
-    )
-  ) - 1
+sizeplot <- function(simdata){
+  ggplot(simdata) +
+    geom_point(aes(x = length,
+                   y = sample),
+               size = 0.25) +
+    geom_ribbon(aes(x = length,
+                    ymin = lower25,
+                    ymax = upper25),
+                alpha = 0.75,
+                fill = pal[1]) +
+    geom_ribbon(aes(x = length,
+                    ymin = lower50,
+                    ymax = upper50),
+                alpha = 0.5,
+                fill = pal[1]) +
+    geom_ribbon(aes(x = length,
+                    ymin = lower75,
+                    ymax = upper75),
+                alpha = 0.25,
+                fill = pal[1]) +
+    geom_ribbon(aes(x = length,
+                    ymin = lower95,
+                    ymax = upper95),
+                alpha = 0.05,
+                fill = pal[1]) +
+    geom_line(aes(x = length,
+                  y = mean),
+              colour = pal[5]) +
+    labs(x = 'Total Length (cm)',
+         y = expression(paste(
+           'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+         ))) +
+    coord_cartesian(ylim = c(0, 25)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_continuous(expand = c(0, 0),
+                       limits = c(1, 500)) +
+    theme1
+}
+
+size.sim1 <- generate.size.sim(1, size.post, size)
+
+sizeA <- sizeplot(size.sim1)
+
+size.sim2 <- generate.size.sim(100, size.post, size)
+
+sizeB <- sizeplot(size.sim2)
+
+size.sim3 <- generate.size.sim(500, size.post, size)
+
+sizeC <- sizeplot(size.sim3)
 
 png(
   'Size Effects Predictions Plot.png',
-  width = 9,
-  height = 8,
+  width = 19,
+  height = 12,
   units = 'cm',
   res = 500
 )
 
-ggplot(simdata) +
-  geom_ribbon(aes(x = length,
-                  ymin = lower25,
-                  ymax = upper25),
-              alpha = 0.75, fill = pal[1]) +
-  geom_ribbon(aes(x = length,
-                  ymin = lower50,
-                  ymax = upper50),
-              alpha = 0.5, fill = pal[1]) +
-  geom_ribbon(aes(x = length,
-                  ymin = lower75,
-                  ymax = upper75),
-              alpha = 0.25, fill = pal[1]) +
-  geom_ribbon(aes(x = length,
-                  ymin = lower95,
-                  ymax = upper95),
-              alpha = 0.05, fill = pal[1]) +
-  geom_line(aes(x = length,
-                 y = mean),
-            colour = pal[5]) +
-  geom_point(aes(x = length,
-                 y = predict),
-             size = 0.5) +
-  labs(x = 'Total Length (cm)',
-       y = expression(paste(
-         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'))) +
-  scale_y_continuous(trans = 'log1p',
-                     breaks = c(0, 1, 10, 100, 1000),
-                     expand = c(0,0)) +
-  scale_x_continuous(expand = c(0,0)) +
-  theme1
+plot_grid(sizeA, sizeB, sizeC, ncol = 3, labels = "AUTO")
 
 dev.off()
 
@@ -1734,7 +1736,7 @@ faminit <- function()
 
 ## Keep track of parameters
 
-famparam <- c("alpha", "beta_min.size", "beta_length")
+famparam <- c("alpha", "beta_min.size", "beta_length", "sigma")
 
 ## Specify data
 
@@ -1947,6 +1949,80 @@ ggplot(fam) +
   scale_x_continuous(trans = 'log', breaks = c(1, 10, 100, 500)) +
   scale_y_continuous(trans = 'log1p', breaks = c(0, 1, 10, 30)) +
   theme1
+
+dev.off()
+
+## Simulate predictions for different families if LDPS is held to 100 microns
+
+set.seed(5251)
+
+fam.sim <- 
+  data.frame(family = sample(1:length(unique(fam$family)), 
+                             5000,
+                             replace = TRUE),
+             length = rep(20, 5000),
+             min.size = rep(100, 5000))
+fam.sim$stand.length <-
+  (fam.sim$length - mean(fam$total.length)) /
+  sd(fam$total.length - mean(fam$total.length))
+  
+fam.sim$stand.min.size <-
+  (fam.sim$min.size - mean(fam$min.size)) /
+  sd(fam$min.size - mean(fam$min.size))
+  
+for (i in 1:5000) {
+  mu <-
+    famrun2$BUGSoutput$sims.list$alpha[, fam.sim$family[i]] +
+    (famrun2$BUGSoutput$sims.list$beta_length[, fam.sim$family[i]] *
+       fam.sim$stand.length[i]) +
+    (famrun2$BUGSoutput$sims.list$beta_min.size *
+       fam.sim$stand.min.size[i])
+  fam.sim$predict[i] <-
+    exp(rnorm(1, mu, famrun2$BUGSoutput$sims.list$sigma)) - 1
+}
+
+fam.sim$family <- as.factor(fam.sim$family)
+
+fam.sim$family <- mapvalues(fam.sim$family,
+                            from = levels(fam.sim$family),
+                            to = c("Acanthuridae",
+                                   "Carangidae",
+                                   "Clupeidae",
+                                   "Cyprinidae",
+                                   "Engraulidae",
+                                   "Gerreidae",
+                                   "Gobiidae",
+                                   "Mugilidae",
+                                   "Mullidae",
+                                   "Sciaenidae",
+                                   "Scombridae",
+                                   "Sparidae"))
+
+fam.sim$predict[fam.sim$predict < 0] <- 0
+
+png(
+  'Family Model Predictions Plot.png',
+  width = 9,
+  height = 8,
+  units = 'cm',
+  res = 500
+)
+
+ggplot(fam.sim) +
+  geom_violin(
+    aes(x = reorder(family, predict, median),
+        y = predict),
+    fill = pal[3],
+    alpha = 0.8,
+    size = 0.5
+  ) +
+  labs(x = 'Family',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 50)) +
+  theme1 +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1))
 
 dev.off()
 
