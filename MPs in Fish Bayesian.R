@@ -116,13 +116,19 @@ hist(trophicfish2$min.size)
 trophicfish2$polymer.ID <- 
   mapvalues(trophicfish2$polymer.ID, 
             from = c('yes','no'),
-            to = c('Polymer ID Method Used',
-                   'Polymer ID Method Not Used'))
+            to = c('Polymer ID used',
+                   'Polymer ID not used'))
 trophicfish2$blanks <- 
   mapvalues(trophicfish2$blanks,
             from = c('yes', 'no'),
-            to = c('Blanks Used',
-                   'Blanks Not Used'))
+            to = c('Blanks used',
+                   'Blanks not used'))
+
+trophicfish2$exclude.fib <- 
+  mapvalues(trophicfish2$exclude.fib,
+            from = c('yes', 'no'),
+            to = c('Fibres excluded',
+                   'Fibres not excluded'))
 
 trophicfish2$feeding.habit <- as.factor(trophicfish2$feeding.habit)
 
@@ -438,8 +444,8 @@ gutmod_paramnames <-
     "Freshwater pelagic (environment)",
     "Freshwater pelagic-neritic (environment",
     "Pelagic (environment)",
-    "Fibres not excluded",
     "Fibres excluded",
+    "Fibres not excluded",
     "Polymer ID not used",
     "Polymer ID used"
   )
@@ -677,6 +683,265 @@ png(
 
 plot_grid(freshplot2, marineplot2, labels = c('A', 'B'), rel_heights = c(1,2.5),
           nrow = 2, align = 'v')
+
+dev.off()
+
+## Simulate results according to trophic level
+
+gutdata.post <- data.frame(run3$BUGSoutput$sims.list)
+
+set.seed(1234)
+
+gutdata.sim1 <-
+  data.frame(TL = seq(from = 1.9, to = 5.1, length.out = 5000),
+             min.size = rep(100, 5000),
+             sample.size = rep(50, 5000),
+             PID = as.factor(rep(2, 5000)),
+             blanks = as.factor(rep(2, 5000)),
+             environment = as.factor(rep(4, 5000)),
+             fibres = as.factor(rep(1, 5000)),
+             region = as.factor(sample(as.integer(gutdata$region), 
+                                       5000, 
+                                       replace = TRUE)))
+
+gutdata.sim1$stand.TL <-
+  (gutdata.sim1$TL - mean(gutdata$TL)) /
+  sd(gutdata$TL - mean(gutdata$TL))
+
+gutdata.sim1$stand.min.size <-
+  (gutdata.sim1$min.size - mean(gutdata$min.size)) /
+  sd(gutdata$min.size - mean(gutdata$min.size))
+
+gutdata.sim1$stand.sample.size <-
+  (gutdata.sim1$sample.size - mean(gutdata$N)) /
+  sd(gutdata$N - mean(gutdata$N))
+
+for (i in 1:5000) {
+  mu <-
+    run3$BUGSoutput$sims.list$alpha_region[, gutdata.sim1$region[i]] +
+    run3$BUGSoutput$sims.list$beta_sample.size * 
+    gutdata.sim1$stand.sample.size[i] +
+    run3$BUGSoutput$sims.list$beta_min.size * gutdata.sim1$stand.min.size[i] +
+    run3$BUGSoutput$sims.list$beta_TL[, gutdata.sim1$region[i]] *
+    gutdata.sim1$stand.TL[i] +
+    run3$BUGSoutput$sims.list$gamma_PID[, gutdata.sim1$PID[i]] +
+    run3$BUGSoutput$sims.list$gamma_exclude.fibs[, gutdata.sim1$fibres[i]] +
+    run3$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim1$blanks[i]] +
+    run3$BUGSoutput$sims.list$gamma_environment[, gutdata.sim1$environment[i]]
+  y <- exp(rnorm(5000, mu, run3$BUGSoutput$sims.list$sigma)) - 1
+  gutdata.sim1$mean[i] <- mean(exp(mu) - 1)
+  gutdata.sim1$upper25[i] <- quantile(y, 0.625)
+  gutdata.sim1$lower25[i] <- quantile(y, 0.375)
+  gutdata.sim1$upper50[i] <- quantile(y, 0.75)
+  gutdata.sim1$lower50[i] <- quantile(y, 0.25)
+  gutdata.sim1$upper75[i] <- quantile(y, 0.875)
+  gutdata.sim1$lower75[i] <- quantile(y, 0.125)
+  gutdata.sim1$upper95[i] <- quantile(y, 0.975)
+  gutdata.sim1$lower95[i] <- quantile(y, 0.025)
+  gutdata.sim1$sample[i] <- sample(y, 1)
+}
+
+gutdata.sim1$region <- mapvalues(gutdata.sim1$region,
+                                 from = levels(gutdata.sim1$region),
+                                 to = c("Africa - Inland Waters",
+                                        "America, North - Inland Waters",
+                                        "America, South - Inland Waters",
+                                        "Asia - Inland Waters",
+                                        "Atlantic, Eastern Central",
+                                        "Atlantic, Northeast",
+                                        "Atlantic, Southwest",
+                                        "Atlantic, Western Central",
+                                        "Europe - Inland Waters",
+                                        "Indian Ocean, Antarctic",
+                                        "Indian Ocean, Eastern",
+                                        "Indian Ocean, Western",
+                                        "Mediterranean and Black Sea",
+                                        "Pacific, Eastern Central",
+                                        "Pacific, Northeast",
+                                        "Pacific, Northwest",
+                                        "Pacific, Southeast",
+                                        "Pacific, Southwest",
+                                        "Pacific, Western Central"))
+
+png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 16, 
+    units = 'cm', res = 500)
+
+ggplot() +
+  geom_ribbon(
+    data = gutdata.sim1,
+    aes(x = TL,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim1,
+    aes(x = TL,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim1,
+    aes(x = TL,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim1,
+    aes(x = TL,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = gutdata.sim1,
+            aes(x = TL,
+                y = mean),
+            colour = pal[5]) +
+  geom_point(
+    data = gutdata,
+    aes(x = TL,
+        y = Mpsgut),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap( ~ region, ncol = 5,
+              labeller = label_wrap_gen(width = 15)) +
+  labs(x = 'Total TL (cm)',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  coord_cartesian(ylim = c(0, 50)) +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 10, 50),
+                     expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0),
+                     limits = c(1.9, 5.1)) +
+  theme1
+
+dev.off()
+
+## Simulate results according to methodology
+
+set.seed(63189)
+
+gutdata.sim2 <-
+  data.frame(TL = rep(3, 5000),
+             min.size = seq(from = 0.5, to = 520, length.out = 5000),
+             sample.size = rep(50, 5000),
+             polymer.ID = as.factor(rep(2, 5000)),
+             blanks = as.factor(rep(2, 5000)),
+             environment = as.factor(rep(4, 5000)),
+             exclude.fib = as.factor(sample(as.integer(gutdata$exclude.fib), 
+                                            5000, 
+                                            replace = TRUE)),
+             region = as.factor(rep(16, 5000)))
+
+gutdata.sim2$stand.TL <-
+  (gutdata.sim2$TL - mean(gutdata$TL)) /
+  sd(gutdata$TL - mean(gutdata$TL))
+
+gutdata.sim2$stand.min.size <-
+  (gutdata.sim2$min.size - mean(gutdata$min.size)) /
+  sd(gutdata$min.size - mean(gutdata$min.size))
+
+gutdata.sim2$stand.sample.size <-
+  (gutdata.sim2$sample.size - mean(gutdata$N)) /
+  sd(gutdata$N - mean(gutdata$N))
+
+for (i in 1:5000) {
+  mu <-
+    run3$BUGSoutput$sims.list$alpha_region[, gutdata.sim2$region[i]] +
+    run3$BUGSoutput$sims.list$beta_sample.size * 
+    gutdata.sim2$stand.sample.size[i] +
+    run3$BUGSoutput$sims.list$beta_min.size * gutdata.sim2$stand.min.size[i] +
+    run3$BUGSoutput$sims.list$beta_TL[, gutdata.sim2$region[i]] *
+    gutdata.sim2$stand.TL[i] +
+    run3$BUGSoutput$sims.list$gamma_PID[, gutdata.sim2$polymer.ID[i]] +
+    run3$BUGSoutput$sims.list$gamma_exclude.fib[, gutdata.sim2$exclude.fib[i]] +
+    run3$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim2$blanks[i]] +
+    run3$BUGSoutput$sims.list$gamma_environment[, gutdata.sim2$environment[i]]
+  y <- exp(rnorm(5000, mu, run3$BUGSoutput$sims.list$sigma)) - 1
+  gutdata.sim2$mean[i] <- mean(exp(mu) - 1)
+  gutdata.sim2$upper25[i] <- quantile(y, 0.625)
+  gutdata.sim2$lower25[i] <- quantile(y, 0.375)
+  gutdata.sim2$upper50[i] <- quantile(y, 0.75)
+  gutdata.sim2$lower50[i] <- quantile(y, 0.25)
+  gutdata.sim2$upper75[i] <- quantile(y, 0.875)
+  gutdata.sim2$lower75[i] <- quantile(y, 0.125)
+  gutdata.sim2$upper95[i] <- quantile(y, 0.975)
+  gutdata.sim2$lower95[i] <- quantile(y, 0.025)
+  gutdata.sim2$sample[i] <- sample(y, 1)
+}
+
+gutdata.sim2$exclude.fib <- mapvalues(gutdata.sim2$exclude.fib,
+                                      from = levels(gutdata.sim2$exclude.fib),
+                                      to = c("Fibres excluded",
+                                             "Fibres not excluded"))
+
+png('MPs Methodology Predictions Plot.png', width = 14, height = 8, 
+    units = 'cm', res = 500)
+
+ggplot() +
+  geom_ribbon(
+    data = gutdata.sim2,
+    aes(x = min.size,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim2,
+    aes(x = min.size,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim2,
+    aes(x = min.size,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = gutdata.sim2,
+    aes(x = min.size,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = gutdata.sim2,
+            aes(x = min.size,
+                y = mean),
+            colour = pal[5]) +
+  geom_point(
+    data = gutdata,
+    aes(x = min.size,
+        y = Mpsgut),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_grid(. ~ exclude.fib, labeller = label_wrap_gen(width = 15)) +
+  coord_cartesian(ylim = c(0, 25), xlim = c(0, 510)) +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  theme1
 
 dev.off()
 
@@ -1957,9 +2222,9 @@ dev.off()
 set.seed(5251)
 
 fam.sim <- 
-  data.frame(family = sample(1:length(unique(fam$family)), 
-                             5000,
-                             replace = TRUE),
+  data.frame(family = as.factor(sample(as.integer(fam$family), 
+                                       5000,
+                                       replace = TRUE)),
              length = rep(20, 5000),
              min.size = rep(100, 5000))
 fam.sim$stand.length <-
@@ -2008,19 +2273,28 @@ png(
   res = 500
 )
 
-ggplot(fam.sim) +
+ggplot() +
   geom_violin(
+    data = fam.sim,
     aes(x = reorder(family, predict, median),
         y = predict),
     fill = pal[3],
     alpha = 0.8,
     size = 0.5
   ) +
+  geom_jitter(
+    data = fam,
+    aes(x = family,
+        y = Mpsgut),
+    size = 0.5,
+    colour = pal[5],
+    shape = 1
+  ) +
   labs(x = 'Family',
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        ))) +
-  scale_y_continuous(expand = c(0, 0), limits = c(0, 50)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-0.1, 40.5)) +
   theme1 +
   theme(axis.text.x = element_text(angle = 50, hjust = 1))
 
