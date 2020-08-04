@@ -10,7 +10,6 @@ library(lattice)
 library(colorspace)
 library(beepr)
 library(ggridges)
-library(bayesplot)
 library(reshape2)
 
 extract.post <- function(x){
@@ -225,37 +224,34 @@ gutdata$region <- as.factor(gutdata$region)
 
 ## Specify model
 
-TLgutmod <- function()
+TLgutmod <- function() 
 {
   # Likelihood
   for (i in 1:N)
   {
     y[i] ~ dnorm(mu[i], tau)
     mu[i] <-
-      alpha_region[region[i]] + beta_sample.size * sample.size[i] + 
-      beta_min.size * min.size[i] + beta_TL[region[i]] * TL[i] + 
-      gamma_PID[PID[i]] + gamma_exclude.fibs[exclude.fibs[i]] + 
-      gamma_blanks[blanks[i]] + gamma_environment[environment[i]]
+      alpha_region[region[i]] + beta_sample.size * sample.size[i] +
+      beta_min.size * min.size[i] + beta_TL[region[i]] * TL[i] +
+      gamma_PID[PID[i]] + gamma_exclude.fibs[exclude.fibs[i]] +
+      gamma_blanks[blanks[i]] + gamma_environment[environment[i]] 
   }
-  
   # Priors
   for (j in 1:nregion)
   {
     alpha_region[j] ~ dnorm(mu_region, tau_region)
-    beta_TL[j] ~ dnorm(mu_TL, tau_TL)
+    beta_TL[j] ~ dnorm(mu_TL, tau_TL) 
   }
   sigma ~ dexp(1)
   tau <- 1 / (sigma * sigma)
   beta_min.size ~ dnorm(-1, 1)
   beta_sample.size ~ dnorm(0, 1)
-  for (k in 1:2)
-  {
+  for (k in 1:2) {
     gamma_PID[k] ~ dnorm(0, 1)
     gamma_exclude.fibs[k] ~ dnorm(0, 1)
     gamma_blanks[k] ~ dnorm(0, 1)
   }
-  for (l in 1:nenvironment)
-  {
+  for (l in 1:nenvironment) {
     gamma_environment[l] ~ dnorm(0, 1)
   }
   mu_region ~ dnorm(0, 1)
@@ -295,7 +291,7 @@ TLgutparam <- c("sigma", "beta_min.size", "beta_sample.size", "gamma_PID",
 
 TLgutdata <-
   list(
-    y = log(gutdata$Mpsgut + 1),
+    y = log(gutdata$Mpsgut + 0.00538),
     TL = as.numeric(scale(gutdata$TL, center = TRUE)),
     PID = as.integer(gutdata$polymer.ID),
     min.size = as.numeric(scale(gutdata$min.size, center = TRUE)),
@@ -310,7 +306,7 @@ TLgutdata <-
   )
 
 ## Run the model
-run1 <- jags(
+run1 <- jags.parallel(
   data = TLgutdata,
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
@@ -326,49 +322,31 @@ run1
 run1mcmc <- as.mcmc(run1)
 xyplot(run1mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
 
-## Extend number of iterations to 10,000
+## Extend number of iterations to 20,000
 
-run2 <- jags(
+run2 <- jags.parallel(
   data = TLgutdata,
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
   n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 2,
+  n.iter = 20000,
+  n.burnin = 2000,
+  n.thin = 3,
   jags.seed = 123,
   model = TLgutmod
 )
 
+run2
 run2mcmc <- as.mcmc(run2)
 xyplot(run2mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
 beep(8)
 
-## Increase iteration to 200000
-
-run3 <- jags(
-  data = TLgutdata,
-  inits = TLgutinit,
-  parameters.to.save = TLgutparam,
-  n.chains = 3,
-  n.iter = 200000,
-  n.burnin = 5000,
-  n.thin = 39,
-  jags.seed = 123,
-  model = TLgutmod
-)
-
-run3
-run3mcmc <- as.mcmc(run3)
-xyplot(run3mcmc, layout = c(6, ceiling(nvar(run3mcmc)/6)))  # looks good
-beep(8)
-
 ## Inference
 
-HPD1 <- as.data.frame(summary(run3mcmc)$quantiles)
+HPD1 <- as.data.frame(summary(run2mcmc)$quantiles)
 HPD1 <- HPD1[c(1:40, 42:59), ]
 
-MAP1 <- as.data.frame(summary(run3mcmc)$statistics)
+MAP1 <- as.data.frame(summary(run2mcmc)$statistics)
 MAP1 <- MAP1[c(1:40, 42:59), ]
 
 ## Extract MAP and HPDIs for the parameters
@@ -486,13 +464,13 @@ dev.off()
 
 ## Posterior density plots
 
-run3long <- extract.post(run3)
+run2long <- extract.post(run2)
 
-run3long$variable <- mapvalues(run3long$variable,
-                               from = levels(run3long$variable),
+run2long$variable <- mapvalues(run2long$variable,
+                               from = levels(run2long$variable),
                                to = gutmod_paramnames)
   
-run3long$order <- c(nrow(run3long):1)
+run2long$order <- c(nrow(run2long):1)
 
 png(
   'Gut Content Posteriors Plot.png',
@@ -502,7 +480,7 @@ png(
   res = 500
 )
 
-ggplot(run3long) +
+ggplot(run2long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
@@ -526,53 +504,28 @@ dev.off()
 
 TLgutparam2 <- c("mu")
 
-run4 <- jags(
+run3 <- jags.parallel(
   data = TLgutdata,
   inits = TLgutinit,
   parameters.to.save = TLgutparam2,
   n.chains = 3,
-  n.iter = 200000,
-  n.burnin = 5000,
-  n.thin = 39,
+  n.iter = 20000,
+  n.burnin = 2000,
+  n.thin = 3,
   jags.seed = 123,
   model = TLgutmod
 )
-beep(1)
+beep(8)
 
-run4mcmc <- as.mcmc(run4)
-
-# set.seed(1234)
-# for(j in 1:nrow(gutdata)) {
-#   for(i in 1:nrow(mu1)) {
-#   predict[i] <- rnorm(1, mean = mu1[i, j], sd = sigma1[i, ])
-#   }
-#   gutdata$post.predict[j] <- exp(mean(predict)) - 1
-#   gutdata$lower95[j] <- exp(quantile(predict, 0.025)) - 1
-#   gutdata$upper95[j] <- exp(quantile(predict, 0.975)) - 1
-# }
-# 
-# set.seed(1234)
-# for(j in 1:nrow(gutdata)) {
-#   for(i in 1:nrow(mu1)) {
-#     mu[i] <- mu1[i, j]
-#   }
-#   gutdata$post.predict[j] <- exp(mean(mu)) - 1
-#   gutdata$lower95[j] <- exp(quantile(mu, 0.025)) - 1
-#   gutdata$upper95[j] <- exp(quantile(mu, 0.975)) - 1
-# }
+run3
+run3mcmc <- as.mcmc(run3)
 
 gutdata$post.predict <-
-  exp(as.data.frame(summary(run4mcmc)$statistics)[2:731, 1]) - 1
+  exp(as.data.frame(summary(run3mcmc)$statistics)[2:731, 1]) - 0.00538
 gutdata$lower95 <-
-  exp(as.data.frame(summary(run4mcmc)$quantiles)[2:731, 1]) - 1
+  exp(as.data.frame(summary(run3mcmc)$quantiles)[2:731, 1]) - 0.00538
 gutdata$upper95 <-
-  exp(as.data.frame(summary(run4mcmc)$quantiles)[2:731, 5]) - 1
-
-gutdata$lower95[gutdata$lower95 < 0] <- 0
-
-# gutdata$post.predict[gutdata$post.predict < 0] <- 0
-# gutdata$lower95[gutdata$lower95 < 0] <- 0
-
+  exp(as.data.frame(summary(run3mcmc)$quantiles)[2:731, 5]) - 0.00538
 
 freshplot1 <-
   ggplot(subset(gutdata, study.habitat == 'Freshwater')) +
@@ -690,7 +643,7 @@ dev.off()
 
 gutdata.post <- data.frame(run3$BUGSoutput$sims.list)
 
-set.seed(1234)
+set.seed(54166)
 
 gutdata.sim1 <-
   data.frame(TL = seq(from = 1.9, to = 5.1, length.out = 5000),
@@ -718,18 +671,18 @@ gutdata.sim1$stand.sample.size <-
 
 for (i in 1:5000) {
   mu <-
-    run3$BUGSoutput$sims.list$alpha_region[, gutdata.sim1$region[i]] +
-    run3$BUGSoutput$sims.list$beta_sample.size * 
+    run2$BUGSoutput$sims.list$alpha_region[, gutdata.sim1$region[i]] +
+    run2$BUGSoutput$sims.list$beta_sample.size * 
     gutdata.sim1$stand.sample.size[i] +
-    run3$BUGSoutput$sims.list$beta_min.size * gutdata.sim1$stand.min.size[i] +
-    run3$BUGSoutput$sims.list$beta_TL[, gutdata.sim1$region[i]] *
+    run2$BUGSoutput$sims.list$beta_min.size * gutdata.sim1$stand.min.size[i] +
+    run2$BUGSoutput$sims.list$beta_TL[, gutdata.sim1$region[i]] *
     gutdata.sim1$stand.TL[i] +
-    run3$BUGSoutput$sims.list$gamma_PID[, gutdata.sim1$PID[i]] +
-    run3$BUGSoutput$sims.list$gamma_exclude.fibs[, gutdata.sim1$fibres[i]] +
-    run3$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim1$blanks[i]] +
-    run3$BUGSoutput$sims.list$gamma_environment[, gutdata.sim1$environment[i]]
-  y <- exp(rnorm(5000, mu, run3$BUGSoutput$sims.list$sigma)) - 1
-  gutdata.sim1$mean[i] <- mean(exp(mu) - 1)
+    run2$BUGSoutput$sims.list$gamma_PID[, gutdata.sim1$PID[i]] +
+    run2$BUGSoutput$sims.list$gamma_exclude.fibs[, gutdata.sim1$fibres[i]] +
+    run2$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim1$blanks[i]] +
+    run2$BUGSoutput$sims.list$gamma_environment[, gutdata.sim1$environment[i]]
+  y <- exp(rnorm(5000, mu, run2$BUGSoutput$sims.list$sigma)) - 0.00538
+  gutdata.sim1$mean[i] <- exp(mean(mu)) - 0.00538
   gutdata.sim1$upper25[i] <- quantile(y, 0.625)
   gutdata.sim1$lower25[i] <- quantile(y, 0.375)
   gutdata.sim1$upper50[i] <- quantile(y, 0.75)
@@ -813,14 +766,14 @@ ggplot() +
   ) +
   facet_wrap( ~ region, ncol = 5,
               labeller = label_wrap_gen(width = 15)) +
-  labs(x = 'Total TL (cm)',
+  labs(x = 'Trophic Level',
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        ))) +
   coord_cartesian(ylim = c(0, 50)) +
   scale_y_continuous(trans = 'log1p',
                      breaks = c(0, 1, 10, 50),
-                     expand = c(0, 0)) +
+                     expand = c(0, 0.05)) +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
   theme1
@@ -857,18 +810,18 @@ gutdata.sim2$stand.sample.size <-
 
 for (i in 1:5000) {
   mu <-
-    run3$BUGSoutput$sims.list$alpha_region[, gutdata.sim2$region[i]] +
-    run3$BUGSoutput$sims.list$beta_sample.size * 
+    run2$BUGSoutput$sims.list$alpha_region[, gutdata.sim2$region[i]] +
+    run2$BUGSoutput$sims.list$beta_sample.size * 
     gutdata.sim2$stand.sample.size[i] +
-    run3$BUGSoutput$sims.list$beta_min.size * gutdata.sim2$stand.min.size[i] +
-    run3$BUGSoutput$sims.list$beta_TL[, gutdata.sim2$region[i]] *
+    run2$BUGSoutput$sims.list$beta_min.size * gutdata.sim2$stand.min.size[i] +
+    run2$BUGSoutput$sims.list$beta_TL[, gutdata.sim2$region[i]] *
     gutdata.sim2$stand.TL[i] +
-    run3$BUGSoutput$sims.list$gamma_PID[, gutdata.sim2$polymer.ID[i]] +
-    run3$BUGSoutput$sims.list$gamma_exclude.fib[, gutdata.sim2$exclude.fib[i]] +
-    run3$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim2$blanks[i]] +
-    run3$BUGSoutput$sims.list$gamma_environment[, gutdata.sim2$environment[i]]
-  y <- exp(rnorm(5000, mu, run3$BUGSoutput$sims.list$sigma)) - 1
-  gutdata.sim2$mean[i] <- mean(exp(mu) - 1)
+    run2$BUGSoutput$sims.list$gamma_PID[, gutdata.sim2$polymer.ID[i]] +
+    run2$BUGSoutput$sims.list$gamma_exclude.fib[, gutdata.sim2$exclude.fib[i]] +
+    run2$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim2$blanks[i]] +
+    run2$BUGSoutput$sims.list$gamma_environment[, gutdata.sim2$environment[i]]
+  y <- exp(rnorm(5000, mu, run2$BUGSoutput$sims.list$sigma)) - 0.00538
+  gutdata.sim2$mean[i] <- exp(mean(mu)) - 0.00538
   gutdata.sim2$upper25[i] <- quantile(y, 0.625)
   gutdata.sim2$lower25[i] <- quantile(y, 0.375)
   gutdata.sim2$upper50[i] <- quantile(y, 0.75)
@@ -1018,7 +971,7 @@ ingdata <- list(
 
 
 ## Run the model
-ingrun1 <- jags(
+ingrun1 <- jags.parallel(
   data = ingdata,
   inits = inginit,
   parameters.to.save = ingparam,
@@ -1036,7 +989,7 @@ xyplot(ingrun1mcmc, layout = c(6, ceiling(nvar(ingrun1mcmc)/6)))
 
 
 # Update iterations to 10000
-ingrun2 <- jags(
+ingrun2 <- jags.parallel(
   data = ingdata,
   inits = inginit,
   parameters.to.save = ingparam,
@@ -1190,7 +1143,7 @@ dev.off()
 ## Rerun model to extract p
 ingparam2 <- c("p")
 
-ingrun3 <- jags(
+ingrun3 <- jags.parallel(
   data = ingdata,
   inits = inginit,
   parameters.to.save = ingparam2,
@@ -1314,13 +1267,13 @@ sizemod_params <- c("alpha", "beta_min.size", "beta_length", "sigma")
 
 sizedata <- list(
   N = nrow(size),
-  y = as.numeric(log(size$Mpsgut + 1)),
+  y = as.numeric(log(size$Mpsgut + 0.00538)),
   min.size = as.numeric(scale(size$min.size, center = TRUE)),
   length = as.numeric(scale(size$total.length, center = TRUE))
 )
 
 ## Run the model
-sizerun1 <- jags(
+sizerun1 <- jags.parallel(
   data = sizedata,
   inits = sizemod_init,
   parameters.to.save = sizemod_params,
@@ -1338,7 +1291,7 @@ xyplot(sizerun1mcmc)
 
 ## Increase to 5,000 interation
 
-sizerun2 <- jags(
+sizerun2 <- jags.parallel(
   data = sizedata,
   inits = sizemod_init,
   parameters.to.save = sizemod_params,
@@ -1456,7 +1409,7 @@ dev.off()
 
 sizemod_params1 <- c("mu")
 
-sizerun3 <- jags(
+sizerun3 <- jags.parallel(
   data = sizedata,
   inits = sizemod_init,
   parameters.to.save = sizemod_params1,
@@ -1472,11 +1425,11 @@ sizerun3
 sizerun3mcmc <- as.mcmc(sizerun3)
 
 size$post.predict <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$statistics)[-1, 1]) - 1
+  exp(as.data.frame(summary(sizerun3mcmc)$statistics)[-1, 1]) - 0.00538
 size$lower95 <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 1]) - 1
+  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 1]) - 0.00538
 size$upper95 <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 5]) - 1
+  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 5]) - 0.00538
 
 ## Plot
 png(
@@ -1520,7 +1473,7 @@ set.seed(5251)
 
 generate.size.sim <- function(min.size, post, data) {
   size.sim <- 
-    data.frame(length = seq(from = 1, to = 500, length.out = 5000),
+    data.frame(length = seq(from = 1, to = 100, length.out = 5000),
                min.size = rep(min.size, 5000))
   
   size.sim$stand.length <-
@@ -1535,8 +1488,10 @@ generate.size.sim <- function(min.size, post, data) {
     mu <-
       post$alpha + post$beta_length * size.sim$stand.length[i] +
       post$beta_min.size * size.sim$stand.min.size[i]
-    y <- exp(rnorm(5000, mu, post$sigma)) - 1
-    size.sim$mean[i] <- mean(exp(mu) - 1)
+    y <- exp(rnorm(5000, mu, post$sigma)) - 0.00538
+    size.sim$sigma[i] <- mean(post$sigma)
+    size.sim$mu[i] <- mean(mu)
+    size.sim$mean[i] <- exp(mean(mu)) - 0.00538
     size.sim$upper25[i] <- quantile(y, 0.625)
     size.sim$lower25[i] <- quantile(y, 0.375)
     size.sim$upper50[i] <- quantile(y, 0.75)
@@ -1545,8 +1500,8 @@ generate.size.sim <- function(min.size, post, data) {
     size.sim$lower75[i] <- quantile(y, 0.125)
     size.sim$upper95[i] <- quantile(y, 0.975)
     size.sim$lower95[i] <- quantile(y, 0.025)
-    size.sim$sample[i] <- sample(y, 1)
   }
+  size.sim$sample <- with(size.sim, exp(rnorm(mu, mu, sigma)) - 0.00538)
   size.sim
 }
 
@@ -1582,10 +1537,12 @@ sizeplot <- function(simdata){
          y = expression(paste(
            'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
          ))) +
-    coord_cartesian(ylim = c(0, 25)) +
-    scale_y_continuous(expand = c(0, 0)) +
+    coord_cartesian(ylim = c(0, 1000)) +
+    scale_y_continuous(trans = 'log1p',
+                       expand = c(0, 0.05),
+                       breaks = c(0, 1, 10, 100, 1000)) +
     scale_x_continuous(expand = c(0, 0),
-                       limits = c(1, 500)) +
+                       limits = c(0, 100)) +
     theme1
 }
 
@@ -1604,7 +1561,7 @@ sizeC <- sizeplot(size.sim3)
 png(
   'Size Effects Predictions Plot.png',
   width = 19,
-  height = 12,
+  height = 7,
   units = 'cm',
   res = 500
 )
@@ -1686,7 +1643,7 @@ sizeingmoddata <- list(
 
 
 ## Run the model
-sizeingrun1 <- jags(
+sizeingrun1 <- jags.parallel(
   data = sizeingmoddata,
   inits = sizeingmodinit,
   parameters.to.save = sizeingmodparam,
@@ -1704,7 +1661,7 @@ xyplot(sizeingrun1mcmc, layout = c(6, ceiling(nvar(sizeingrun1mcmc)/6)))
 
 ## Increase iterations to 10000
 
-sizeingrun2 <- jags(
+sizeingrun2 <- jags.parallel(
   data = sizeingmoddata,
   inits = sizeingmodinit,
   parameters.to.save = sizeingmodparam,
@@ -1854,7 +1811,7 @@ dev.off()
 ## Rerun model to extract p
 sizeingparam2 <- c("p")
 
-sizeingrun3 <- jags(
+sizeingrun3 <- jags.parallel(
   data = sizeingmoddata,
   inits = sizeingmodinit,
   parameters.to.save = sizeingparam2,
@@ -2007,7 +1964,7 @@ famparam <- c("alpha", "beta_min.size", "beta_length", "sigma")
 
 famdata <-
   list(
-    y = log(fam$Mpsgut + 1),
+    y = log(fam$Mpsgut + 0.00538),
     length = as.numeric(scale(fam$total.length, center = TRUE)),
     min.size = as.numeric(scale(fam$min.size, center = TRUE)),
     family = as.integer(fam$family),
@@ -2016,7 +1973,7 @@ famdata <-
   )
 
 ## Run the model
-famrun1 <- jags(
+famrun1 <- jags.parallel(
   data = famdata,
   inits = faminit,
   parameters.to.save = famparam,
@@ -2034,22 +1991,21 @@ xyplot(famrun1mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
 
 ## Increase number of iterations to 10,000 
 
-famrun2 <- jags(
+famrun2 <- jags.parallel(
   data = famdata,
   inits = faminit,
   parameters.to.save = famparam,
   n.chains = 3,
   n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 3,
+  n.burnin = 2000,
+  n.thin = 2,
   jags.seed = 123,
   model = fammod
 )
 
 famrun2
 famrun2mcmc <- as.mcmc(famrun2)
-mcmc_trace(famrun2mcmc)
-mcmc_dens(famrun2mcmc)
+xyplot(famrun2mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
 
 ## Inference
 
@@ -2067,7 +2023,7 @@ fam.par.est <- data.frame(
 
 with(fam, tapply(as.integer(family), family, mean))
 
-fam.par.est <- fam.par.est[-26, ]
+fam.par.est <- fam.par.est[-c(26:27), ]
 fam.par.est$parameter <- as.character(fam.par.est$parameter)
 fam.par.est$parameter <- as.factor(fam.par.est$parameter)
 
@@ -2173,14 +2129,14 @@ dev.off()
 
 famparam2 <- "mu"
 
-famrun3 <- jags(
+famrun3 <- jags.parallel(
   data = famdata,
   inits = faminit,
   parameters.to.save = famparam2,
   n.chains = 3,
   n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 3,
+  n.burnin = 2000,
+  n.thin = 2,
   jags.seed = 123,
   model = fammod
 )
@@ -2188,13 +2144,11 @@ famrun3 <- jags(
 famrun3mcmc <- as.mcmc(famrun3)
 
 fam$post.predict <-
-  exp(as.data.frame(summary(famrun4mcmc)$statistics)[2:181, 1]) - 1
+  exp(as.data.frame(summary(famrun4mcmc)$statistics)[2:181, 1]) - 0.00538
 fam$lower95 <-
-  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 1]) - 1
+  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 1]) - 0.00538
 fam$upper95 <-
-  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 5]) - 1
-
-fam$lower95[fam$lower95 < 0] <- 0
+  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 5]) - 0.00538
 
 png('Gut Content Family Bayesian Plot.png', width = 9, height = 10, units = 'cm', 
     res = 500)
@@ -2243,7 +2197,7 @@ for (i in 1:5000) {
     (famrun2$BUGSoutput$sims.list$beta_min.size *
        fam.sim$stand.min.size[i])
   fam.sim$predict[i] <-
-    exp(rnorm(1, mu, famrun2$BUGSoutput$sims.list$sigma)) - 1
+    exp(rnorm(1, mu, famrun2$BUGSoutput$sims.list$sigma)) - 0.00538
 }
 
 fam.sim$family <- as.factor(fam.sim$family)
@@ -2263,8 +2217,6 @@ fam.sim$family <- mapvalues(fam.sim$family,
                                    "Scombridae",
                                    "Sparidae"))
 
-fam.sim$predict[fam.sim$predict < 0] <- 0
-
 png(
   'Family Model Predictions Plot.png',
   width = 9,
@@ -2276,7 +2228,7 @@ png(
 ggplot() +
   geom_violin(
     data = fam.sim,
-    aes(x = reorder(family, predict, median),
+    aes(x = family,
         y = predict),
     fill = pal[3],
     alpha = 0.8,
@@ -2294,7 +2246,10 @@ ggplot() +
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        ))) +
-  scale_y_continuous(expand = c(0, 0), limits = c(-0.1, 40.5)) +
+  scale_y_continuous(trans = 'log1p', 
+                     expand = c(0, 0), 
+                     limits = c(-0.1, 325),
+                     breaks = c(0, 1, 10, 100, 300)) +
   theme1 +
   theme(axis.text.x = element_text(angle = 50, hjust = 1))
 
