@@ -11,6 +11,7 @@ library(colorspace)
 library(beepr)
 library(ggridges)
 library(reshape2)
+library(DHARMa)
 
 extract.post <- function(x){
   out <- data.frame(x$BUGSoutput$sims.list)
@@ -183,9 +184,11 @@ trophicfish2$area <-
                    'Pacific', 'Pacific',
                    'Pacific'))
 
-#### MPs in guts model ####
+# MPs in guts model -------------------------------------------------------
 
-## Set up the data
+
+#### Set up the data ####
+
 gutdata <- subset(trophicfish2, Mpsgut != 'NA' & environment != '')
 summary(gutdata)
 summary(gutdata$author)
@@ -222,37 +225,43 @@ gutdata$exclude.fib <- as.factor(gutdata$exclude.fib)
 gutdata$region <- as.character(gutdata$region)
 gutdata$region <- as.factor(gutdata$region)
 
-## Specify model
+#### Fit model ####
 
 TLgutmod <- function() 
 {
-  # Likelihood
-  for (i in 1:N)
-  {
-    y[i] ~ dnorm(mu[i], tau)
-    mu[i] <-
-      alpha_region[region[i]] + beta_sample.size * sample.size[i] +
-      beta_min.size * min.size[i] + beta_TL[region[i]] * TL[i] +
-      gamma_PID[PID[i]] + gamma_exclude.fibs[exclude.fibs[i]] +
-      gamma_blanks[blanks[i]] + gamma_environment[environment[i]] 
+  # Likelihood for zero or not zero
+  for(i in 1:Nzeros) {
+    notzero[i] ~ dbinom(p[i], 1)
+    logit(p[i]) <- alpha_zero + beta_zero * min.size[i]
+  }
+  # Likelihood for non-zero data
+  for (j in 1:N) {
+    y[j] ~ dlnorm(mu[j], tau)
+    mu[j] <-
+      alpha_region[region[j]] + beta_sample.size * sample.size[j] +
+      beta_min.size * min.size2[j] + beta_TL[region[j]] * TL[j] +
+      gamma_PID[PID[j]] + gamma_exclude.fibs[exclude.fibs[j]] +
+      gamma_blanks[blanks[j]] + gamma_environment[environment[j]] 
   }
   # Priors
-  for (j in 1:nregion)
+  alpha_zero ~ dnorm(0, 1)
+  beta_zero ~ dnorm(0, 1)
+  for (k in 1:nregion)
   {
-    alpha_region[j] ~ dnorm(mu_region, tau_region)
-    beta_TL[j] ~ dnorm(mu_TL, tau_TL) 
+    alpha_region[k] ~ dnorm(mu_region, tau_region)
+    beta_TL[k] ~ dnorm(mu_TL, tau_TL) 
   }
   sigma ~ dexp(1)
   tau <- 1 / (sigma * sigma)
   beta_min.size ~ dnorm(-1, 1)
   beta_sample.size ~ dnorm(0, 1)
-  for (k in 1:2) {
-    gamma_PID[k] ~ dnorm(0, 1)
-    gamma_exclude.fibs[k] ~ dnorm(0, 1)
-    gamma_blanks[k] ~ dnorm(0, 1)
+  for (l in 1:2) {
+    gamma_PID[l] ~ dnorm(0, 1)
+    gamma_exclude.fibs[l] ~ dnorm(0, 1)
+    gamma_blanks[l] ~ dnorm(0, 1)
   }
-  for (l in 1:nenvironment) {
-    gamma_environment[l] ~ dnorm(0, 1)
+  for (m in 1:nenvironment) {
+    gamma_environment[m] ~ dnorm(0, 1)
   }
   mu_region ~ dnorm(0, 1)
   sigma_region ~ dexp(1)
@@ -260,6 +269,22 @@ TLgutmod <- function()
   mu_TL ~ dnorm(0, 1)
   sigma_TL ~ dexp(1)
   tau_TL <- 1 / (sigma_TL * sigma_TL)
+  ## Prediction
+  for (n in 1:Nzeros) {
+    fitzero[n] ~ dbinom(ilogit(alpha_zero + beta_zero * min.size[n]), 1)
+    fitnonzero[n] ~ dlnorm(
+      alpha_region[region2[n]] +
+        beta_sample.size * sample.size2[n] +
+        beta_min.size * min.size[n] +
+        beta_TL[region2[n]] * TL2[n] +
+        gamma_PID[PID2[n]] +
+        gamma_exclude.fibs[exclude.fibs2[n]] +
+        gamma_blanks[blanks2[n]] +
+        gamma_environment[environment2[n]],
+      tau
+    )
+    prediction[n] <- fitzero[n] * fitnonzero[n]
+  }
 }
 
 ## Generate initial values for MCMC
@@ -267,7 +292,9 @@ TLgutmod <- function()
 TLgutinit <- function()
 {
   list(
-    "sigma" = 1,
+    "sigma" = exp(1),
+    "alpha_zero" = rnorm(1),
+    "beta_zero" = rnorm(1),
     "beta_min.size" = rnorm(1),
     "beta_sample.size" = rnorm(1),
     "gamma_PID" = rnorm(2),
@@ -283,26 +310,39 @@ TLgutinit <- function()
 
 ## Keep track of parameters
 
-TLgutparam <- c("sigma", "beta_min.size", "beta_sample.size", "gamma_PID", 
-                "gamma_exclude.fibs", "gamma_blanks", "gamma_environment",
-                "alpha_region", "beta_TL")
+TLgutparam <- c("sigma", "alpha_zero", "beta_zero", "beta_min.size", 
+                "beta_sample.size", "gamma_PID", "gamma_exclude.fibs", 
+                "gamma_blanks", "gamma_environment", "alpha_region", "beta_TL")
 
 ## Specify data
 
+gutdata$zeros <- ifelse(gutdata$Mpsgut == 0, 0, 1)
+gutdata.nonzeros <- subset(gutdata, Mpsgut != 0)
+
 TLgutdata <-
   list(
-    y = log(gutdata$Mpsgut + 0.00538),
-    TL = as.numeric(scale(gutdata$TL, center = TRUE)),
-    PID = as.integer(gutdata$polymer.ID),
+    Nzeros = nrow(gutdata),
+    notzero = gutdata$zeros,
     min.size = as.numeric(scale(gutdata$min.size, center = TRUE)),
-    exclude.fibs = as.integer(gutdata$exclude.fib),
-    blanks = as.integer(gutdata$blanks),
-    sample.size = as.numeric(scale(gutdata$N, center = TRUE)),
-    region = as.integer(gutdata$region),
-    environment = as.integer(gutdata$environment),
-    N = nrow(gutdata),
-    nenvironment = max(as.integer(gutdata$environment)),
-    nregion = max(as.integer(gutdata$region))
+    y = gutdata.nonzeros$Mpsgut,
+    TL = as.numeric(scale(gutdata.nonzeros$TL, center = TRUE)),
+    PID = as.integer(gutdata.nonzeros$polymer.ID),
+    min.size2 = as.numeric(scale(gutdata.nonzeros$min.size, center = TRUE)),
+    exclude.fibs = as.integer(gutdata.nonzeros$exclude.fib),
+    blanks = as.integer(gutdata.nonzeros$blanks),
+    sample.size = as.numeric(scale(gutdata.nonzeros$N, center = TRUE)),
+    region = as.integer(gutdata.nonzeros$region),
+    environment = as.integer(gutdata.nonzeros$environment),
+    N = nrow(gutdata.nonzeros),
+    nenvironment = max(as.integer(gutdata.nonzeros$environment)),
+    nregion = max(as.integer(gutdata.nonzeros$region)),
+    TL2 = as.numeric(scale(gutdata$TL, center = TRUE)),
+    PID2 = as.integer(gutdata$polymer.ID),
+    exclude.fibs2 = as.integer(gutdata$exclude.fib),
+    blanks2 = as.integer(gutdata$blanks),
+    sample.size2 = as.numeric(scale(gutdata$N, center = TRUE)),
+    region2 = as.integer(gutdata$region),
+    environment2 = as.integer(gutdata$environment)
   )
 
 ## Run the model
@@ -329,9 +369,9 @@ run2 <- jags.parallel(
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
   n.chains = 3,
-  n.iter = 20000,
+  n.iter = 30000,
   n.burnin = 2000,
-  n.thin = 3,
+  n.thin = 7,
   jags.seed = 123,
   model = TLgutmod
 )
@@ -341,13 +381,42 @@ run2mcmc <- as.mcmc(run2)
 xyplot(run2mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
 beep(8)
 
-## Inference
+#### Diagnostics ####
+
+TLgutparam2 <- c("prediction")
+
+run3 <- jags.parallel(
+  data = TLgutdata,
+  inits = TLgutinit,
+  parameters.to.save = TLgutparam2,
+  n.chains = 3,
+  n.iter = 30000,
+  n.burnin = 2000,
+  n.thin = 7,
+  jags.seed = 123,
+  model = TLgutmod
+)
+
+TLgutmod.response <- t(run3$BUGSoutput$sims.list$prediction)
+TLgutmod.observed <- gutdata$Mpsgut
+TLgutmod.fitted <- apply(t(run3$BUGSoutput$sims.list$pred),
+                         1,
+                         median)
+
+check.TLgutmod <- createDHARMa(simulatedResponse = TLgutmod.response,
+                               observedResponse = TLgutmod.observed, 
+                               fittedPredictedResponse = TLgutmod.fitted,
+                               integerResponse = F)
+
+plot(check.TLgutmod)  # potential quantile deviations
+
+#### Inference ####
 
 HPD1 <- as.data.frame(summary(run2mcmc)$quantiles)
-HPD1 <- HPD1[c(1:40, 42:59), ]
+HPD1 <- HPD1[c(1:19, 21:41, 44:61), ]
 
 MAP1 <- as.data.frame(summary(run2mcmc)$statistics)
-MAP1 <- MAP1[c(1:40, 42:59), ]
+MAP1 <- MAP1[c(1:19, 21:41, 44:61), ]
 
 ## Extract MAP and HPDIs for the parameters
 Params1 <- data.frame(
@@ -502,30 +571,12 @@ dev.off()
 
 ## Run again and estimate mu this time as well
 
-TLgutparam2 <- c("mu")
-
-run3 <- jags.parallel(
-  data = TLgutdata,
-  inits = TLgutinit,
-  parameters.to.save = TLgutparam2,
-  n.chains = 3,
-  n.iter = 20000,
-  n.burnin = 2000,
-  n.thin = 3,
-  jags.seed = 123,
-  model = TLgutmod
-)
-beep(8)
-
-run3
-run3mcmc <- as.mcmc(run3)
-
 gutdata$post.predict <-
-  exp(as.data.frame(summary(run3mcmc)$statistics)[2:731, 1]) - 0.00538
+  apply(TLgutmod.response, 1, median)
 gutdata$lower95 <-
-  exp(as.data.frame(summary(run3mcmc)$quantiles)[2:731, 1]) - 0.00538
+  apply(TLgutmod.response, 1, quantile, prob = 0.025)
 gutdata$upper95 <-
-  exp(as.data.frame(summary(run3mcmc)$quantiles)[2:731, 5]) - 0.00538
+  apply(TLgutmod.response, 1, quantile, prob = 0.975)
 
 freshplot1 <-
   ggplot(subset(gutdata, study.habitat == 'Freshwater')) +
@@ -639,22 +690,22 @@ plot_grid(freshplot2, marineplot2, labels = c('A', 'B'), rel_heights = c(1,2.5),
 
 dev.off()
 
-## Simulate results according to trophic level
+#### Predictions ####
 
-gutdata.post <- data.frame(run3$BUGSoutput$sims.list)
+## Simulate results according to trophic level
 
 set.seed(54166)
 
 gutdata.sim1 <-
-  data.frame(TL = seq(from = 1.9, to = 5.1, length.out = 5000),
-             min.size = rep(100, 5000),
-             sample.size = rep(50, 5000),
-             PID = as.factor(rep(2, 5000)),
-             blanks = as.factor(rep(2, 5000)),
-             environment = as.factor(rep(4, 5000)),
-             fibres = as.factor(rep(1, 5000)),
+  data.frame(TL = seq(from = 1.9, to = 5.1, length.out = 12000),
+             min.size = rep(100, 12000),
+             sample.size = rep(50, 12000),
+             PID = as.factor(rep(2, 12000)),
+             blanks = as.factor(rep(2, 12000)),
+             environment = as.factor(rep(4, 12000)),
+             fibres = as.factor(rep(1, 12000)),
              region = as.factor(sample(as.integer(gutdata$region), 
-                                       5000, 
+                                       12000, 
                                        replace = TRUE)))
 
 gutdata.sim1$stand.TL <-
@@ -669,7 +720,7 @@ gutdata.sim1$stand.sample.size <-
   (gutdata.sim1$sample.size - mean(gutdata$N)) /
   sd(gutdata$N - mean(gutdata$N))
 
-for (i in 1:5000) {
+for (i in 1:12000) {
   mu <-
     run2$BUGSoutput$sims.list$alpha_region[, gutdata.sim1$region[i]] +
     run2$BUGSoutput$sims.list$beta_sample.size * 
@@ -681,8 +732,12 @@ for (i in 1:5000) {
     run2$BUGSoutput$sims.list$gamma_exclude.fibs[, gutdata.sim1$fibres[i]] +
     run2$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim1$blanks[i]] +
     run2$BUGSoutput$sims.list$gamma_environment[, gutdata.sim1$environment[i]]
-  y <- exp(rnorm(5000, mu, run2$BUGSoutput$sims.list$sigma)) - 0.00538
-  gutdata.sim1$mean[i] <- exp(mean(mu)) - 0.00538
+  sigma <-  run2$BUGSoutput$sims.list$sigma
+  p <- plogis(run2$BUGSoutput$sims.list$alpha_zero +
+                run2$BUGSoutput$sims.list$beta_zero * 
+                gutdata.sim1$stand.min.size)
+  y <- rlnorm(12000, mu, sigma) * rbinom(12000, 1, p)
+  gutdata.sim1$median[i] <- median(exp(mu) * rbinom(12000, 1, p))
   gutdata.sim1$upper25[i] <- quantile(y, 0.625)
   gutdata.sim1$lower25[i] <- quantile(y, 0.375)
   gutdata.sim1$upper50[i] <- quantile(y, 0.75)
@@ -754,7 +809,7 @@ ggplot() +
   ) +
   geom_line(data = gutdata.sim1,
             aes(x = TL,
-                y = mean),
+                y = median),
             colour = pal[5]) +
   geom_point(
     data = gutdata,
@@ -785,16 +840,16 @@ dev.off()
 set.seed(63189)
 
 gutdata.sim2 <-
-  data.frame(TL = rep(3, 5000),
-             min.size = seq(from = 0.5, to = 520, length.out = 5000),
-             sample.size = rep(50, 5000),
-             polymer.ID = as.factor(rep(2, 5000)),
-             blanks = as.factor(rep(2, 5000)),
-             environment = as.factor(rep(4, 5000)),
+  data.frame(TL = rep(3, 12000),
+             min.size = seq(from = 0.5, to = 520, length.out = 12000),
+             sample.size = rep(50, 12000),
+             polymer.ID = as.factor(rep(2, 12000)),
+             blanks = as.factor(rep(2, 12000)),
+             environment = as.factor(rep(4, 12000)),
              exclude.fib = as.factor(sample(as.integer(gutdata$exclude.fib), 
-                                            5000, 
+                                            12000, 
                                             replace = TRUE)),
-             region = as.factor(rep(16, 5000)))
+             region = as.factor(rep(16, 12000)))
 
 gutdata.sim2$stand.TL <-
   (gutdata.sim2$TL - mean(gutdata$TL)) /
@@ -808,7 +863,7 @@ gutdata.sim2$stand.sample.size <-
   (gutdata.sim2$sample.size - mean(gutdata$N)) /
   sd(gutdata$N - mean(gutdata$N))
 
-for (i in 1:5000) {
+for (i in 1:12000) {
   mu <-
     run2$BUGSoutput$sims.list$alpha_region[, gutdata.sim2$region[i]] +
     run2$BUGSoutput$sims.list$beta_sample.size * 
@@ -820,8 +875,12 @@ for (i in 1:5000) {
     run2$BUGSoutput$sims.list$gamma_exclude.fib[, gutdata.sim2$exclude.fib[i]] +
     run2$BUGSoutput$sims.list$gamma_blanks[, gutdata.sim2$blanks[i]] +
     run2$BUGSoutput$sims.list$gamma_environment[, gutdata.sim2$environment[i]]
-  y <- exp(rnorm(5000, mu, run2$BUGSoutput$sims.list$sigma)) - 0.00538
-  gutdata.sim2$mean[i] <- exp(mean(mu)) - 0.00538
+  sigma <- run2$BUGSoutput$sims.list$sigma
+  p <- plogis(run2$BUGSoutput$sims.list$alpha_zero +
+                run2$BUGSoutput$sims.list$beta_zero * 
+                gutdata.sim2$stand.min.size)
+  y <- rlnorm(12000, mu, sigma) * rbinom(12000, 1, p)
+  gutdata.sim2$median[i] <- median(exp(mu) * rbinom(12000, 1, p))
   gutdata.sim2$upper25[i] <- quantile(y, 0.625)
   gutdata.sim2$lower25[i] <- quantile(y, 0.375)
   gutdata.sim2$upper50[i] <- quantile(y, 0.75)
@@ -876,7 +935,7 @@ ggplot() +
   ) +
   geom_line(data = gutdata.sim2,
             aes(x = min.size,
-                y = mean),
+                y = median),
             colour = pal[5]) +
   geom_point(
     data = gutdata,
@@ -888,7 +947,9 @@ ggplot() +
   ) +
   facet_grid(. ~ exclude.fib, labeller = label_wrap_gen(width = 15)) +
   coord_cartesian(ylim = c(0, 25), xlim = c(0, 510)) +
-  scale_y_continuous(expand = c(0,0)) +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 10, 50),
+                     expand = c(0, 0.05)) +
   scale_x_continuous(expand = c(0,0)) +
   labs(x = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
        y = expression(paste(
