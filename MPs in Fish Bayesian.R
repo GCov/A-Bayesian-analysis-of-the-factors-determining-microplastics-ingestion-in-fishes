@@ -233,60 +233,19 @@ gutdata$zeros <- ifelse(gutdata$totalcount == 0, 0, 1)
 
 #### Fit model ####
 
-TLgutmod <- function() 
-{
+TLgutmod <- function() {
   # Likelihood
   for (i in 1:N) {
     y[i] ~ dpois(mu[i])
-    mu[i] <- lambda[i] * z[i] + 0.00001
-    z[i] ~ dbinom(p[i], 1)
-    logit(p[i]) <- 
-      alpha_p + beta_p1 * min.size[i] + beta_p2 * sample.size[i]
-    log(lambda[i]) <-
-      log(sample.size[i]) + 
-      alpha_region[region[i]] + 
-      alpha_environment[environment[i]] +
-      beta_min.size * min.size[i] + 
-      beta_TL[region[i]] * TL[i] +
-      gamma_PID[PID[i]] + 
-      gamma_exclude.fibs[exclude.fibs[i]] +
-      gamma_blanks[blanks[i]]
-    
-    fitted_counts[i] ~ dpois(mu[i])
-    fitted[i] <- fitted_counts[i] / sample.size[i]
+    mu[i] <- lambda[i] * (1 - z[i]) + 0.00001
+    z[i] ~ dbern(p[i])
+    logit(p[i]) <- alpha_p + beta_p * min.size[i]
+    log(lambda[i]) <- alpha - log(sample.size)
   }
-  
   # Priors
   alpha_p ~ dnorm(0, 1)
-  beta_p1 ~ dnorm(0, 1)
-  beta_p2 ~ dnorm(0, 1)
-  
-  for (j in 1:nregion)
-  {
-    alpha_region[j] ~ dnorm(mu_region, tau_region)
-    beta_TL[j] ~ dnorm(mu_TL, tau_TL) 
-  }
-  mu_region ~ dnorm(0, 1)
-  sigma_region ~ dexp(1)
-  tau_region <- 1 / (sigma_region * sigma_region)
-  mu_TL ~ dnorm(0, 1)
-  sigma_TL ~ dexp(1)
-  tau_TL <- 1 / (sigma_TL * sigma_TL)
-  
-  for (k in 1:nenvironment) {
-    alpha_environment[k] ~ dnorm(mu_environment, tau_environment)
-  }
-  mu_environment ~ dnorm(0, 1)
-  sigma_environment ~ dexp(1)
-  tau_environment <- 1 / (sigma_environment * sigma_environment)
-  
-  beta_min.size ~ dnorm(-1, 1)
-  
-  for (l in 1:2) {
-    gamma_PID[l] ~ dnorm(0, 1)
-    gamma_exclude.fibs[l] ~ dnorm(0, 1)
-    gamma_blanks[l] ~ dnorm(0, 1)
-  }
+  beta_p ~ dnorm(0, 1)
+  alpha ~ dexp(1)
 }
 
 ## Generate initial values for MCMC
@@ -295,26 +254,14 @@ TLgutinit <- function()
 {
   list(
     "alpha_p" = rnorm(1),
-    "beta_p1" = rnorm(1),
-    "beta_p2" = rnorm(1),
-    "mu_region" = rnorm(1),
-    "sigma_region" = 1,
-    "mu_TL" = rnorm(1),
-    "sigma_TL" = 1,
-    "mu_environment" = rnorm(1),
-    "sigma_environment" = 1,
-    "beta_min.size" = rnorm(1),
-    "gamma_PID" = rnorm(2),
-    "gamma_exclude.fibs" = rnorm(2),
-    "gamma_blanks" = rnorm(2)
+    "beta_p" = rnorm(1),
+    "alpha" = rexp(1)
   )
 }
 
 ## Keep track of parameters
 
-TLgutparam <- c("alpha_p", "beta_p1", "beta_p2", "alpha_region",
-                "alpha_environment", "beta_TL", "beta_min.size", 
-                "gamma_PID", "gamma_exclude.fibs", "gamma_blanks")
+TLgutparam <- c("alpha_p", "beta_p", "alpha")
 
 ## Specify data
 
@@ -323,25 +270,17 @@ TLgutdata <-
     y = gutdata$totalcount,
     N = nrow(gutdata),
     sample.size = as.numeric(gutdata$N),
-    region = as.integer(gutdata$region),
-    environment = as.integer(gutdata$environment),
-    TL = as.numeric(scale(gutdata$TL, center = TRUE)),
-    min.size = as.numeric(scale(gutdata$min.size, center = TRUE)),
-    PID = as.integer(gutdata$polymer.ID),
-    exclude.fibs = as.integer(gutdata$exclude.fib),
-    blanks = as.integer(gutdata$blanks),
-    nenvironment = max(as.integer(gutdata$environment)),
-    nregion = max(as.integer(gutdata$region))
+    min.size = as.numeric(scale(gutdata$min.size, center = TRUE))
   )
 
 ## Run the model
-run1 <- jags(
+run1 <- jags.parallel(
   data = TLgutdata,
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
   n.chains = 3,
-  n.iter = 2000,
-  n.burnin = 1000,
+  n.iter = 500,
+  n.burnin = 100,
   n.thin = 1,
   jags.seed = 123,
   model = TLgutmod

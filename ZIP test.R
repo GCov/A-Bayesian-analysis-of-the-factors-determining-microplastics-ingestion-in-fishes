@@ -7,42 +7,40 @@ library(ggplot2)
 ## Generate test data 
 
 set.seed(15256)
-x <- runif(1000, -2, 2)  # predictor affects both p zeros and outcome if not 0
-pone <- plogis(1 + (2 * x + rnorm(1000, 0, 1)))  # p of not getting zero
-plot(pone ~ x)  # visualize
-zeros <- rbinom(1000, 1, pone)  # generate data, 0 for 0, 1 for not 0
-y <- zeros
-error <- rnorm(length(y[y == 1]), 0, 0.5)  # error for y
-y[y == 1] <- exp(1.5 + (0.75 * x[y == 1] + error))  # generate y values when not 0
+x <- runif(1000, -2, 2)  # predictor
+p <- plogis(1 + (0.5 * x))  # probability of structural zeros
+plot(p ~ x)  # visualize
+
+lambda <- exp(0.5 - (0.4 * x))  # generate lambda
+plot(lambda ~ x)  # visualize
+
+size <- runif(1000, 1, 2000)  # sample size
+
+y <- (1 - rbinom(x, 1, p)) * rpois(x, lambda)
+
 plot(y ~ x)  # visualize all data
 
 ## Specify model for JAGS
 
 testmod <- function() {
-  ## Likelihood of zero or not zero
+  ## Likelihood
   for(i in 1:N) {
-    notzero[i] ~ dbinom(p[i], 1)
-    logit(p[i]) <- alpha_zero + beta_zero * x[i]  # linear predictor
+    y[i] ~ dpois(mu[i])
+    mu[i] <- lambda[i] * (1 - z[i]) + 0.00001
+    z[i] ~ dbern(p[i])
+    logit(p[i]) <- alpha_p + beta_p * x[i]
+    log(lambda[i]) <- alpha + beta * x[i]
   }
   
-  ## Log-normal likelihood when data is not zero
-  for(j in 1:Ny) {
-    y[j] ~ dlnorm(mu[j], tau)
-    mu[j] <- alpha + beta * x2[j]
-  }
-  alpha_zero ~ dnorm(0, 1)
-  beta_zero ~ dnorm(0, 1)
+  ## Prior
+  alpha_p ~ dnorm(0, 1)
+  beta_p ~ dnorm(0, 1)
   alpha ~ dnorm(0, 1)
   beta ~ dnorm(0, 1)
-  sigma ~ dexp(1)
-  tau <- 1 / (sigma * sigma)
   
   ## Model predictions
-  for(k in 1:N) {
-    fittedzeros[k] ~ 
-      dbinom(ilogit(alpha_zero + beta_zero * x[k]), 1)
-    fittedall[k] ~ dlnorm((alpha + beta * x[k]), tau)
-    fitted[k] <- fittedzeros[k] * fittedall[k]
+  for(j in 1:N) {
+    fitted[j] ~ dpois(mu[j])
   }
 }
 
@@ -50,31 +48,26 @@ testmod <- function() {
 
 testmodinit <- function() {
   list(
-    alpha_zero = rnorm(1),
-    beta_zero = rnorm(1),
+    alpha_p = rnorm(1),
+    beta_p = rnorm(1),
     alpha = rnorm(1),
-    beta = rnorm(1),
-    sigma = rexp(1)
+    beta = rnorm(1)
   )
 }
 
 ## Parameters to keep
 
-testmodparams <- c("alpha_zero",
-                   "beta_zero",
+testmodparams <- c("alpha_p",
+                   "beta_p",
                    "alpha",
-                   "beta",
-                   "sigma")
+                   "beta")
 ## Specify data
 
 testmoddata <-
   list(
     N = length(x),
-    Ny = length(y[y > 0]),
-    notzero = zeros,
-    y = y[y > 0],
-    x = x,
-    x2 = x[y > 0]
+    y = y,
+    x = x
   )
 
 ## Run model (note that I tried this a few t imes and 10,000 iterations is best)
@@ -84,9 +77,9 @@ testmodrun1 <-
     data = testmoddata,
     inits = testmodinit,
     parameters.to.save = testmodparams,
-    n.iter = 10000,
+    n.iter = 2000,
     n.burnin = 1000,
-    n.thin = 2,
+    n.thin = 1,
     jags.seed = 1656,
     model = testmod
   )
@@ -104,9 +97,9 @@ testmodrun2 <-
     data = testmoddata,
     inits = testmodinit,
     parameters.to.save = testmodparams1,
-    n.iter = 10000,
+    n.iter = 2000,
     n.burnin = 1000,
-    n.thin = 2,
+    n.thin = 1,
     jags.seed = 1656,
     model = testmod
   )
