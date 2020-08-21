@@ -7,15 +7,24 @@ library(DHARMa)
 color_scheme_set("viridis")
 
 model1 <- brm(bf(totalcount ~ 
+                   0 + 
                    offset(log(N)) + 
-                   1 + scale(TL, center = TRUE) + 
+                   scale(TL, center = TRUE) + 
                    scale(min.size, center = TRUE) +
                    polymer.ID + blanks + exclude.fib +
-                   (1 | region) + (1 | environment),
+                   (1 + TL | region) + 
+                   (1 | environment),
                  zi ~ scale(min.size, center = TRUE)),
+              data = gutdata,
               family = zero_inflated_poisson(link = "log", 
                                              link_zi = "logit"),
-              data = gutdata,
+              prior = c(set_prior("normal(0, 1)", 
+                                  class = "b"),
+                        set_prior("normal(0, 1)",
+                                  class = "sd"),
+                        set_prior("normal(0, 1)",
+                                  class = "b",
+                                  dpar = "zi")),
               warmup = 500, 
               iter = 2000,
               chains = 3,
@@ -39,4 +48,8 @@ diagnose1 <- createDHARMa(simulatedResponse = response1,
                           observedResponse = gutdata$Mpsgut,
                           fittedPredictedResponse = fitted1)
 plot(diagnose1)
+
+conditional_effects(model1)
+
+mcmc_plot(model1)
 
