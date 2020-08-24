@@ -254,26 +254,29 @@ summary(model1)
 ## Compare without ZI
 
 model2 <-
-  brm(bf(log(Mpsgut + 0.005376344) ~
+  brm(bf(totalcount ~
            polymer.ID + blanks + exclude.fib +
-           scale(N, center = TRUE) +
+           offset(log(N)) +
            scale(TL, center = TRUE) +
            scale(min.size, center = TRUE) +
-           (1 + TL | region) + (1 | environment)),
+           (1 + TL | region) + (1 | environment),
+         zi ~ scale(min.size, center = TRUE) +
+           scale(N, center = TRUE)),
       data = gutdata,
-      family = gaussian(link = 'log'),
+      family = zero_inflated_poisson(link = "log",
+                                     link_zi = "logit"),
       prior = c(set_prior("normal(0, 1)", class = "b"),
                 set_prior("lkj(2)", class = "cor"),
                 set_prior("normal(0, 1)", class = "Intercept"),
-                set_prior("exponential(1)", class = "sd")),
+                set_prior("exponential(1)", class = "sd"),
+                set_prior("normal(0, 1)", class = "b", dpar = "zi")),
       warmup = 500,
       iter = 2000,
       chains = 3,
       inits = "random",
       cores = 8,
       seed = 8913,
-      control = list(max_treedepth = 10,
-                     adapt_delta = 0.999))
+      control = list(max_treedepth = 15))
 
 summary(model2)
 
@@ -282,7 +285,8 @@ loo(model2)
 
 loo_compare(model1, model2)
 
-beep(8)
+waic(model1)
+waic(model2)
 
 #### Diagnostics ####
 
@@ -309,8 +313,10 @@ plot(diagnose2)
 
 #### Inference ####
 
-HPD1 <- as.data.frame(summary(run2mcmc)$quantiles)
-HPD1 <- HPD1[c(1:19, 21:41, 44:61), ]
+HPD1 <- as.data.frame(posterior_summary(model1))
+HPD1$param <- rownames(HPD1)
+rownames(HPD1)
+HPD1 <- HPD1[-c(1:3,), ]
 
 MAP1 <- as.data.frame(summary(run2mcmc)$statistics)
 MAP1 <- MAP1[c(1:19, 21:41, 44:61), ]
@@ -407,17 +413,17 @@ png('Gut Content HPDI Plot.png',
     units = 'cm', 
     res = 500)
 
-ggplot(Params1) +
+ggplot(HPD1) +
   geom_hline(aes(yintercept = 0),
              linetype = 'dashed',
              size = 0.5,
              colour = pal[2]) +
-  geom_errorbar(aes(x = reorder(parameter, order),
-                    ymin = lower,
-                    ymax = upper),
+  geom_errorbar(aes(x = param,
+                    ymin = Q2.5,
+                    ymax = Q97.5),
                 size = 0.25) +
-  geom_point(aes(x = reorder(parameter, order),
-                 y = MAP),
+  geom_point(aes(x = param,
+                 y = Estimate),
              size = 1,
              shape = 16,
              colour = pal[3]) +

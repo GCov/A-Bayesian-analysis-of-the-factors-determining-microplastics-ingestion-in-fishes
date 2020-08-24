@@ -235,33 +235,81 @@ gutdata$zeros <- ifelse(gutdata$totalcount == 0, 0, 1)
 
 TLgutmod <- function() {
   # Likelihood
-  for (i in 1:N) {
+  for(i in 1:N) {
     y[i] ~ dpois(mu[i])
     mu[i] <- lambda[i] * (1 - z[i]) + 0.00001
     z[i] ~ dbern(p[i])
-    logit(p[i]) <- alpha_p + beta_p * min.size[i]
-    log(lambda[i]) <- alpha - log(sample.size)
+    logit(p[i]) <- alpha_p + beta_p1*min.size[i]
+    log(lambda[i]) <-
+      log(sample.size[i]) +
+      alpha_region[region[i]] +
+      beta_min.size*min.size[i] +
+      beta_TL[region[i]]*TL[i] +
+      gamma_PID[PID[i]] +
+      gamma_exclude.fibs[exclude.fibs[i]] +
+      gamma_blanks[blanks[i]]
+    
+    ## Fitted values
+    fitted_counts[i] ~ dpois(mu[i])
+    fitted[i] <- fitted_counts[i] / sample.size[i]
   }
-  # Priors
+  
+  ## Priors
+  for(j in 1:nregion) {
+    alpha_region[j] <- B[j,1]
+    beta_TL[j] <- B[j,2]
+    B[j,1:2] ~ dmnorm(B.hat[j,], Tau.B[,])
+    B.hat[j,1] <- mu_region
+    B.hat[j,2] <- mu_TL
+  }
+  mu_region ~ dnorm(0, 1)
+  mu_TL ~ dnorm(0, 1)
+  
+  Tau.B[1:2, 1:2] <- inverse(Sigma.B[,])
+  Sigma.B[1,1] <- pow(sigma_region, 2)
+  sigma_region ~ dexp(1)
+  Sigma.B[2,2] <- pow(sigma_TL, 2)
+  sigma_TL ~ dexp(1)
+  Sigma.B[1,2] <- rho * sigma_region * sigma_TL
+  Sigma.B[2,1] <- Sigma.B[1,2]
+  rho ~ dunif(-1, 1)
+  
   alpha_p ~ dnorm(0, 1)
-  beta_p ~ dnorm(0, 1)
-  alpha ~ dexp(1)
+  beta_p1 ~ dnorm(0, 1)
+  
+  beta_min.size ~ dnorm(-1, 1)
+  
+  for (k in 1:2) {
+    gamma_PID[k] ~ dnorm(0, 1)
+    gamma_exclude.fibs[k] ~ dnorm(0, 1)
+    gamma_blanks[k] ~ dnorm(0, 1)
+  }
 }
-
+  
 ## Generate initial values for MCMC
 
 TLgutinit <- function()
 {
   list(
     "alpha_p" = rnorm(1),
-    "beta_p" = rnorm(1),
-    "alpha" = rexp(1)
+    "beta_p1" = rnorm(1),
+    "mu_region" = rnorm(1),
+    "sigma_region" = 1,
+    "mu_TL" = rnorm(1),
+    "sigma_TL" = 1,
+    "rho" = runif(1, -1, 1),
+    "beta_min.size" = rnorm(1),
+    "gamma_PID" = rnorm(2),
+    "gamma_exclude.fibs" = rnorm(2),
+    "gamma_blanks" = rnorm(2)
   )
 }
 
 ## Keep track of parameters
 
-TLgutparam <- c("alpha_p", "beta_p", "alpha")
+TLgutparam <- c("alpha_p", "beta_p1", "alpha_region",
+                "beta_TL", "beta_min.size", 
+                "gamma_PID", "gamma_exclude.fibs", "gamma_blanks", "rho")
 
 ## Specify data
 
@@ -270,7 +318,13 @@ TLgutdata <-
     y = gutdata$totalcount,
     N = nrow(gutdata),
     sample.size = as.numeric(gutdata$N),
-    min.size = as.numeric(scale(gutdata$min.size, center = TRUE))
+    region = as.integer(gutdata$region),
+    TL = as.numeric(scale(gutdata$TL, center = TRUE)),
+    min.size = as.numeric(scale(gutdata$min.size, center = TRUE)),
+    PID = as.integer(gutdata$polymer.ID),
+    exclude.fibs = as.integer(gutdata$exclude.fib),
+    blanks = as.integer(gutdata$blanks),
+    nregion = max(as.integer(gutdata$region))
   )
 
 ## Run the model
@@ -279,7 +333,7 @@ run1 <- jags.parallel(
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
   n.chains = 3,
-  n.iter = 500,
+  n.iter = 1000,
   n.burnin = 100,
   n.thin = 1,
   jags.seed = 123,
@@ -289,6 +343,8 @@ run1 <- jags.parallel(
 run1
 run1mcmc <- as.mcmc(run1)
 xyplot(run1mcmc, layout = c(6, ceiling(nvar(run1mcmc)/6)))
+
+beep(8)
 
 ## Extend number of iterations to 50,000
 
