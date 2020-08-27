@@ -14,6 +14,7 @@ library(brms)
 library(bayesplot)
 library(tidybayes)
 color_scheme_set("viridis")
+library(dplyr)
 
 #### Set up some aesthetics ####
 
@@ -176,9 +177,8 @@ trophicfish2$area <-
                    'Pacific', 'Pacific',
                    'Pacific'))
 
-# MPs in guts model -------------------------------------------------------
 
-
+#### MPs in guts model ####
 #### Set up the data ####
 
 gutdata <- subset(trophicfish2, Mpsgut != 'NA' & environment != '')
@@ -225,37 +225,92 @@ gutdata$zeros <- ifelse(gutdata$totalcount == 0, 0, 1)
 
 #### Fit model ####
 
+model1.priors <-
+  c(
+    set_prior("normal(-1, 1)",
+              class = "b", coef = "scalemin.sizecenterEQTRUE"),
+    set_prior("lkj(2)",
+              class = "cor"),
+    set_prior("normal(0, 1)",
+              class = "Intercept"),
+    set_prior("exponential(1)",
+              class = "sd",
+              group = "blanks"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "blanks",
+              coef = "Intercept"),
+    set_prior("exponential(1)",
+              class = "sd",
+              group = "environment"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "environment",
+              coef = "Intercept"),
+    set_prior("exponential(1)",
+              class = "sd",
+              group = "exclude.fib"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "exclude.fib",
+              coef = "Intercept"),
+    set_prior("exponential(1)",
+              class = "sd",
+              group = "polymer.ID"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "polymer.ID",
+              coef = "Intercept"),
+    set_prior("exponential(1)",
+              class = "sd",
+              group = "region"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "region",
+              coef = "Intercept"),
+    set_prior("normal(0, 1)",
+              class = "sd",
+              group = "region",
+              coef = "scaleTLcenterEQTRUE"),
+    set_prior("normal(0, 1)", class = "b", dpar = "zi")
+  )
+
 model1 <-
-  brm(bf(totalcount ~
-           polymer.ID + blanks + exclude.fib +
-           offset(log(N)) +
-           scale(TL, center = TRUE) +
-           scale(min.size, center = TRUE) +
-           (1 + TL | region) + (1 | environment),
-         zi ~ scale(min.size, center = TRUE)),
-      data = gutdata,
-      family = zero_inflated_poisson(link = "log",
-                                     link_zi = "logit"),
-      prior = c(set_prior("normal(0, 1)", class = "b"),
-                set_prior("lkj(2)", class = "cor"),
-                set_prior("normal(0, 1)", class = "Intercept"),
-                set_prior("exponential(1)", class = "sd"),
-                set_prior("normal(0, 1)", class = "b", dpar = "zi")),
-    warmup = 500,
-    iter = 2000,
+  brm(
+    bf(
+      totalcount ~
+        offset(log(N)) +
+        1 + scale(min.size, center = TRUE) +
+        (1 + scale(TL, center = TRUE) | region) +
+        (1 | environment) +
+        (1 | polymer.ID) +
+        (1 | blanks) +
+        (1 | exclude.fib) ,
+      zi ~ scale(min.size, center = TRUE)
+    ),
+    data = gutdata,
+    family = zero_inflated_poisson(link = "log",
+                                   link_zi = "logit"),
+    prior = model1.priors,
+    warmup = 100,
+    iter = 1000,
     chains = 3,
     inits = "random",
     cores = 8,
     seed = 8913,
-    control = list(max_treedepth = 15))
+    control = list(max_treedepth = 15),
+    sample_prior = TRUE
+  )
 
 summary(model1)
+conditional_effects(model1)
+
 
 ## Compare without ZI
 
 model2 <-
   brm(bf(totalcount ~
-           polymer.ID + blanks + exclude.fib +
+           1 + polymer.ID + blanks + exclude.fib +
            offset(log(N)) +
            scale(TL, center = TRUE) +
            scale(min.size, center = TRUE) +
@@ -276,9 +331,11 @@ model2 <-
       inits = "random",
       cores = 8,
       seed = 8913,
-      control = list(max_treedepth = 15))
+      control = list(max_treedepth = 15),
+      sample_prior = TRUE)
 
 summary(model2)
+conditional_effects(model2)
 
 loo(model1)
 loo(model2)
@@ -313,34 +370,41 @@ plot(diagnose2)
 
 #### Inference ####
 
-HPD1 <- as.data.frame(posterior_summary(model1))
-HPD1$param <- rownames(HPD1)
-rownames(HPD1)
-HPD1 <- HPD1[-c(1:3,), ]
+## Posterior density plots
 
-MAP1 <- as.data.frame(summary(run2mcmc)$statistics)
-MAP1 <- MAP1[c(1:19, 21:41, 44:61), ]
+model1.post <- posterior_samples(model1)
 
-## Extract MAP and HPDIs for the parameters
-Params1 <- data.frame(
-  parameter = as.factor(rownames(MAP1)),
-  MAP = MAP1[, 1],
-  lower = HPD1[, 1],
-  upper = HPD1[, 5]
-)
-
-with(gutdata, tapply(as.integer(polymer.ID), polymer.ID, mean))
-with(gutdata, tapply(as.integer(blanks), blanks, mean))
-with(gutdata, tapply(as.integer(environment), environment, mean))
-with(gutdata, tapply(as.integer(exclude.fib), exclude.fib, mean))
-with(gutdata, tapply(as.integer(region), region, mean))
-
-Params1$parameter <- as.character(Params1$parameter)
-Params1$parameter <- as.factor(Params1$parameter)
+names(model1.post)
+model1.post2 <- melt(model1.post[, c(1,3:6, 12:61)])
 
 gutmod_paramnames <-
   c(
+    "Intercept",
+    "Polymer ID used",
+    "Blanks used",
+    "Fibres not excluded",
+    "Standardized lowest detectable particle size (microns)",
+    "Bathydemersal (environment)",
+    "Bathypelagic (environment)",
+    "Benthopelagic (environment",
+    "Demersal (environment)",
+    "Freshwater benthopelagic (environment)",
+    "Freshwater demersal (environment)",
+    "Freshwater pelagic-neritic (environment",
+    "Freshwater pelagic (environment)",
+    "Pelagic-neritic (environment",
+    "Pelagic-oceanic (environment)",
+    "Pelagic (environment)",
+    "Reef-associated (environment)",
     "Africa - Inland Waters (FAO area)",
+    "America, North - Inland Waters (FAO area)",
+    "America, South - Inland Waters (FAO area)",
+    "Asia - Inland Waters (FAO area)",
+    "Atlantic, Eastern Central (FAO area)",
+    "Atlantic, Northeast (FAO area)",
+    "Atlantic, Southwest (FAO area)",
+    "Atlantic, Western Central (FAO area)",
+    "Europe - Inland Waters (FAO area)",
     "Indian Ocean, Antarctic (FAO area)",
     "Indian Ocean, Eastern (FAO area)",
     "Indian Ocean, Western (FAO area)",
@@ -351,17 +415,15 @@ gutmod_paramnames <-
     "Pacific, Southeast (FAO area)",
     "Pacific, Southwest (FAO area)",
     "Pacific, Western Central (FAO area)",
-    "America, North - Inland Waters (FAO area)",
-    "America, South - Inland Waters (FAO area)",
-    "Asia - Inland Waters (FAO area)",
-    "Atlantic, Eastern Central (FAO area)",
-    "Atlantic, Northeast (FAO area)",
-    "Atlantic, Southwest (FAO area)",
-    "Atlantic, Western Central (FAO area)",
-    "Europe - Inland Waters (FAO area)",
-    "Standardized lowest detectable particle size (microns)",
-    "Standardized sample size (number of fish)",
     "Standardized trophic level:Africa - Inland Waters",
+    "Standardized trophic level:America, North - Inland Waters",
+    "Standardized trophic level:America, South - Inland Waters",
+    "Standardized trophic level:Asia - Inland Waters",
+    "Standardized trophic level:Atlantic, Eastern Central",
+    "Standardized trophic level:Atlantic, Northeast",
+    "Standardized trophic level:Atlantic, Southwest",
+    "Standardized trophic level:Atlantic, Western Central",
+    "Standardized trophic level:Europe - Inland Waters",
     "Standardized trophic level:Indian Ocean, Antarctic",
     "Standardized trophic level:Indian Ocean, Eastern",
     "Standardized trophic level:Indian Ocean, Western",
@@ -371,78 +433,13 @@ gutmod_paramnames <-
     "Standardized trophic level:Pacific, Northwest",
     "Standardized trophic level:Pacific, Southeast",
     "Standardized trophic level:Pacific, Southwest",
-    "Standardized trophic level:Pacific, Western Central",
-    "Standardized trophic level:America, North - Inland Waters",
-    "Standardized trophic level:America, South - Inland Waters",
-    "Standardized trophic level:Asia - Inland Waters",
-    "Standardized trophic level:Atlantic, Eastern Central",
-    "Standardized trophic level:Atlantic, Northeast",
-    "Standardized trophic level:Atlantic, Southwest",
-    "Standardized trophic level:Atlantic, Western Central",
-    "Standardized trophic level:Europe - Inland Waters",
-    "Blanks not used",
-    "Blanks used",
-    "Bathypelagic (environment)",
-    "Pelagic-neritic (environment",
-    "Pelagic-oceanic (environment)",
-    "Reef-associated (environment)",
-    "Bathydemersal (environment)",
-    "Benthopelagic (environment",
-    "Demersal (environment)",
-    "Freshwater benthopelagic (environment)",
-    "Freshwater demersal (environment)",
-    "Freshwater pelagic (environment)",
-    "Freshwater pelagic-neritic (environment",
-    "Pelagic (environment)",
-    "Fibres excluded",
-    "Fibres not excluded",
-    "Polymer ID not used",
-    "Polymer ID used"
+    "Standardized trophic level:Pacific, Western Central"
   )
 
-Params1$parameter <- mapvalues(Params1$parameter,
-                               from = levels(Params1$parameter),
-                               to = gutmod_paramnames)
-
-Params1$order <- c(nrow(Params1):1)
-
-## HDPI plots
-png('Gut Content HPDI Plot.png', 
-    width = 14, 
-    height = 15, 
-    units = 'cm', 
-    res = 500)
-
-ggplot(HPD1) +
-  geom_hline(aes(yintercept = 0),
-             linetype = 'dashed',
-             size = 0.5,
-             colour = pal[2]) +
-  geom_errorbar(aes(x = param,
-                    ymin = Q2.5,
-                    ymax = Q97.5),
-                size = 0.25) +
-  geom_point(aes(x = param,
-                 y = Estimate),
-             size = 1,
-             shape = 16,
-             colour = pal[3]) +
-  labs(x = 'Coefficient',
-       y = '') +
-  coord_flip() +
-  theme1
-
-dev.off()
-
-## Posterior density plots
-
-run2long <- extract.post(run2)
-
-run2long$variable <- mapvalues(run2long$variable,
-                               from = levels(run2long$variable),
-                               to = gutmod_paramnames)
-
-run2long$order <- c(nrow(run2long):1)
+model1.post2$variable <- 
+  mapvalues(model1.post2$variable,
+            from = levels(model1.post2$variable),
+            to = gutmod_paramnames)
 
 png(
   'Gut Content Posteriors Plot.png',
@@ -452,10 +449,10 @@ png(
   res = 500
 )
 
-ggplot(run2long) +
+ggplot(model1.post2) +
   geom_density_ridges(
     aes(x = value,
-        y = reorder(variable, order, mean)),
+        y = variable),
     fill = pal[1],
     colour = pal[5],
     alpha = 0.75
@@ -472,7 +469,8 @@ ggplot(run2long) +
 
 dev.off()
 
-## Run again and estimate mu this time as well
+
+## Fitted model
 
 gutdata.fitted <- cbind(gutdata, fitted(model1, 
                                         scale = 'response',
@@ -801,7 +799,7 @@ dev.off()
 
 #### Ingestion rate model ####
 
-## Set up the data
+#### Set up the data ####
 
 ingestion <- subset(trophicfish2, !is.na(IR))
 
@@ -820,94 +818,36 @@ ingestion$region <- as.factor(ingestion$region)
 
 summary(ingestion)
 
-## Specify model
-ingmod <- function()
-{
-  # Likelihood
-  for(i in 1:N)
-  {
-    y[i] ~ dbinom(p[i], n[i])
-    logit(p[i]) <- alpha[region[i]] + beta[region[i]] * TL[i]
-  }
-  
-  # Prior
-  for(j in 1:Nregions)
-  {
-    alpha[j] ~ dnorm(mu_region, tau_region)
-    beta[j] ~ dnorm(mu_TL, tau_TL)
-  }
-  mu_region ~ dnorm(0, 1)
-  tau_region <- 1 / (sigma_region * sigma_region)
-  sigma_region ~ dexp(1)
-  mu_TL ~ dnorm(0, 1)
-  tau_TL <- 1 / (sigma_TL * sigma_TL)
-  sigma_TL ~ dexp(1)
-}
+#### Fit model ####
 
-
-## Initial values for MCMC chains
-inginit <- function()
-{
-  list(
-    "mu_region" = rnorm(1),
-    "sigma_region" = 1,
-    "mu_TL" = 1,
-    "sigma_TL" = 1
+ingmodel1 <-
+  brm(
+    sucesses | N ~
+      1 + scale(min.size, center = TRUE) +
+      scale(TL, center = TRUE) +
+      (TL | region),
+    data = ingestion,
+    family = binomial(link = "logit"),
+    prior = c(
+      set_prior("normal(0, 1)", class = "b"),
+      set_prior("lkj(2)", class = "cor"),
+      set_prior("normal(0, 1)", class = "Intercept"),
+      set_prior("exponential(1)", class = "sd")
+    ),
+    warmup = 100,
+    iter = 500,
+    chains = 3,
+    inits = "random",
+    cores = 8,
+    seed = 8913,
+    sample_prior = TRUE
   )
-}
 
-## Parameters to keep track of
-ingparam <- c("alpha", "beta")
-
-
-## Specify data
-ingdata <- list(
-  N = nrow(ingestion),
-  Nregions = max(as.integer(ingestion$region)),
-  y = as.numeric(ingestion$successes),
-  n = as.numeric(ingestion$N),
-  TL = as.numeric(scale(ingestion$TL, center = TRUE)),
-  region = as.integer(ingestion$region)
-)
+summary(ingmodel1)
+conditional_effects(ingmodel1)
 
 
-## Run the model
-ingrun1 <- jags.parallel(
-  data = ingdata,
-  inits = inginit,
-  parameters.to.save = ingparam,
-  n.chains = 3,
-  n.iter = 2000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = ingmod
-)
-
-ingrun1
-ingrun1mcmc <- as.mcmc(ingrun1)
-xyplot(ingrun1mcmc, layout = c(6, ceiling(nvar(ingrun1mcmc)/6)))
-
-
-# Update iterations to 10000
-ingrun2 <- jags.parallel(
-  data = ingdata,
-  inits = inginit,
-  parameters.to.save = ingparam,
-  n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 3,
-  jags.seed = 123,
-  model = ingmod
-)
-
-ingrun2
-ingrun2mcmc <- as.mcmc(ingrun2)
-xyplot(ingrun2mcmc, 
-       layout = c(6, ceiling(nvar(ingrun2mcmc)/6)))
-
-## Inference
+#### Inference ####
 
 ingrunHPD <- as.data.frame(summary(ingrun2mcmc)$quantiles)
 
@@ -1041,6 +981,8 @@ ggplot(ingrun2long) +
 
 dev.off()
 
+#### Predictions ####
+
 ## Rerun model to extract p
 ingparam2 <- c("p")
 
@@ -1124,7 +1066,8 @@ dev.off()
 
 #### Body size MPs in guts model ####
 
-## Set up the data
+#### Set up the data ####
+
 size <- subset(gutdata, total.length != 'NA')
 size$life.stage <- as.factor(size$life.stage)
 
@@ -1133,83 +1076,41 @@ length(unique(size$study))  # 61 studies
 length(unique(size$species))  # 327 species
 length(unique(size$study))  # 61 studies
 
-## Specify model
-sizemod <- function()
-{
-  # Likelihood
-  for (i in 1:N)
-  {
-    y[i] ~ dnorm(mu[i], tau)
-    mu[i] <- alpha + beta_min.size * min.size[i] + beta_length * length[i]
-  }
-  # Prior
-  alpha ~ dexp(1)
-  beta_min.size ~ dnorm(-1, 1)
-  beta_length ~ dnorm(0, 1)
-  tau <- 1 / (sigma * sigma)
-  sigma ~ dexp(1)
-}
+#### Fit model ####
 
-## Initial values
-sizemod_init <- function()
-{
-  list(
-    "alpha" = 1,
-    "beta_min.size" = rnorm(1),
-    "beta_length" = rnorm(1),
-    "sigma" = 1
-  )
-}
-
-## Parameters to keep track of
-sizemod_params <- c("alpha", "beta_min.size", "beta_length", "sigma")
-
-## Specify data
-
-sizedata <- list(
-  N = nrow(size),
-  y = as.numeric(log(size$Mpsgut + 0.00538)),
-  min.size = as.numeric(scale(size$min.size, center = TRUE)),
-  length = as.numeric(scale(size$total.length, center = TRUE))
+sizemod1 <- brm(
+  bf(
+    totalcount ~
+      1 + scale(min.size, center = TRUE) +
+      scale(total.length, center = TRUE) +
+      (scale(total.length, center = TRUE) | region),
+    zi ~ scale(min.size, center = TRUE)
+  ),
+  data = size,
+  family = zero_inflated_poisson(link = "log",
+                                 link_zi = "logit"),
+  prior =
+    c(
+      set_prior("normal(0, 1)", class = "b"),
+      set_prior("lkj(2)", class = "cor"),
+      set_prior("normal(0, 1)", class = "Intercept"),
+      set_prior("exponential(1)", class = "sd"),
+      set_prior("normal(0, 1)", class = "b", dpar = "zi")
+    ),
+  warmup = 500,
+  iter = 2000,
+  chains = 3,
+  inits = "random",
+  cores = 8,
+  seed = 8913,
+  sample_prior = TRUE
 )
 
-## Run the model
-sizerun1 <- jags.parallel(
-  data = sizedata,
-  inits = sizemod_init,
-  parameters.to.save = sizemod_params,
-  n.chains = 3,
-  n.iter = 2000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = sizemod
-)
+summary(sizemod1)
+conditional_effects(sizemod1)
 
-sizerun1
-sizerun1mcmc <- as.mcmc(sizerun1)
-xyplot(sizerun1mcmc)
 
-## Increase to 5,000 interation
-
-sizerun2 <- jags.parallel(
-  data = sizedata,
-  inits = sizemod_init,
-  parameters.to.save = sizemod_params,
-  n.chains = 3,
-  n.iter = 5000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = sizemod
-)
-
-sizerun2  # DIC = 753
-sizerun2mcmc <- as.mcmc(sizerun2)
-summary(sizerun2mcmc)
-xyplot(sizerun2mcmc)
-
-## Inference
+#### Inference ####
 
 sizeHPDI <- as.data.frame(summary(sizerun2mcmc)$quantiles)
 
@@ -1305,6 +1206,8 @@ ggplot(sizerun2long) +
   theme1
 
 dev.off()
+
+#### Predictions ####
 
 ## Rerun model and extract mu
 
@@ -1473,7 +1376,7 @@ dev.off()
 
 #### Body size model for ingestion rates ####
 
-## Set up the data
+#### Set up the data ####
 
 sizeing <- subset(allo, !is.na(IR))
 
@@ -1492,93 +1395,34 @@ sizeing$region <- as.factor(sizeing$region)
 
 summary(sizeing)
 
-## Specify model
-sizeingmod <- function()
-{
-  # Likelihood
-  for(i in 1:N)
-  {
-    y[i] ~ dbinom(p[i], n[i])
-    logit(p[i]) <- alpha[region[i]] + beta[region[i]] * length[i]
-  }
-  
-  # Prior
-  for(j in 1:Nregions)
-  {
-    alpha[j] ~ dnorm(mu_region, tau_region)
-    beta[j] ~ dnorm(mu_length, tau_length)
-  }
-  mu_region ~ dnorm(0, 1)
-  tau_region <- 1 / (sigma_region * sigma_region)
-  sigma_region ~ dexp(1)
-  mu_length ~ dnorm(0, 1)
-  tau_length <- 1 / (sigma_length * sigma_length)
-  sigma_length ~ dexp(1)
-}
 
+#### Fit model ####
 
-## Initial values for MCMC chains
-sizeingmodinit <- function()
-{
-  list(
-    "mu_region" = rnorm(1),
-    "sigma_region" = 1,
-    "mu_length" = rnorm(1),
-    "sigma_length" = 1
+zieingmodel1 <-
+  brm(
+    sucesses | N ~
+      1 + scale(min.size, center = TRUE) +
+      scale(total.length, center = TRUE) +
+      (scale(total.length, center = TRUE) | region),
+    data = sizeing,
+    family = binomial(link = "logit"),
+    prior = c(
+      set_prior("normal(0, 1)", class = "b"),
+      set_prior("lkj(2)", class = "cor"),
+      set_prior("normal(0, 1)", class = "Intercept"),
+      set_prior("exponential(1)", class = "sd")
+    ),
+    warmup = 100,
+    iter = 500,
+    chains = 3,
+    inits = "random",
+    cores = 8,
+    seed = 8913,
+    sample_prior = TRUE
   )
-}
-
-## Parameters to keep track of
-sizeingmodparam <- c("alpha", "beta")
 
 
-## Specify data
-sizeingmoddata <- list(
-  N = nrow(sizeing),
-  Nregions = max(as.integer(sizeing$region)),
-  y = as.numeric(sizeing$successes),
-  n = as.numeric(sizeing$N),
-  length = as.numeric(scale(sizeing$total.length, center = TRUE)),
-  region = as.integer(sizeing$region)
-)
-
-
-## Run the model
-sizeingrun1 <- jags.parallel(
-  data = sizeingmoddata,
-  inits = sizeingmodinit,
-  parameters.to.save = sizeingmodparam,
-  n.chains = 3,
-  n.iter = 2000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = sizeingmod
-)
-
-sizeingrun1
-sizeingrun1mcmc <- as.mcmc(sizeingrun1)
-xyplot(sizeingrun1mcmc, layout = c(6, ceiling(nvar(sizeingrun1mcmc)/6)))
-
-## Increase iterations to 10000
-
-sizeingrun2 <- jags.parallel(
-  data = sizeingmoddata,
-  inits = sizeingmodinit,
-  parameters.to.save = sizeingmodparam,
-  n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 3,
-  jags.seed = 123,
-  model = sizeingmod
-)
-
-sizeingrun2
-sizeingrun2mcmc <- as.mcmc(sizeingrun2)
-xyplot(sizeingrun2mcmc, layout = c(6, ceiling(nvar(sizeingrun2mcmc)/6)))
-
-## Inference
+#### Inference ####
 
 sizeingHPDI <- as.data.frame(summary(sizeingrun2mcmc)$quantiles)
 
@@ -1709,6 +1553,9 @@ ggplot(sizeingrun2long) +
 
 dev.off()
 
+
+#### Predictions ####
+
 ## Rerun model to extract p
 sizeingparam2 <- c("p")
 
@@ -1796,6 +1643,8 @@ dev.off()
 
 #### Family model ####
 
+#### Set up data ####
+
 for(i in 1:nrow(size)) {
   size$famcount[i] <- nrow(subset(size, family == family[i]))
 }
@@ -1811,104 +1660,41 @@ length(unique(fam$study))  # 46 studies
 fam$family <- as.character(fam$family)
 fam$family <- as.factor(fam$family)
 
-## Model
+#### Fit model ####
 
-## Specify model
-
-fammod <- function()
-{
-  # Likelihood
-  for (i in 1:N)
-  {
-    y[i] ~ dnorm(mu[i], tau)
-    mu[i] <-
-      alpha[family[i]] + beta_min.size * min.size[i] +
-      beta_length[family[i]] * length[i]
-  }
-  
-  # Prior
-  for (j in 1:Nfamily)
-  {
-    alpha[j] ~ dnorm(mu_family, tau_family)
-    beta_length[j] ~ dnorm(mu_length, tau_length)
-  }
-  sigma ~ dexp(1)
-  tau <- 1 / (sigma * sigma)
-  beta_min.size ~ dnorm(-1, 1)
-  mu_family ~ dnorm(0, 1)
-  sigma_family ~ dexp(1)
-  tau_family <- 1 / (sigma_family * sigma_family)
-  mu_length ~ dnorm(0, 1)
-  sigma_length ~ dexp(1)
-  tau_length <- 1 / (sigma_length * sigma_length)
-}
-
-## Generate initial values for MCMC
-
-faminit <- function()
-{
-  list(
-    "sigma" = 1,
-    "beta_min.size" = rnorm(1),
-    "mu_family" = rnorm(1),
-    "sigma_family" = 1,
-    "mu_length" = rnorm(1),
-    "sigma_length" = 1
-  )
-}
-
-## Keep track of parameters
-
-famparam <- c("alpha", "beta_min.size", "beta_length", "sigma")
-
-## Specify data
-
-famdata <-
-  list(
-    y = log(fam$Mpsgut + 0.00538),
-    length = as.numeric(scale(fam$total.length, center = TRUE)),
-    min.size = as.numeric(scale(fam$min.size, center = TRUE)),
-    family = as.integer(fam$family),
-    N = nrow(fam),
-    Nfamily = max(as.integer(fam$family))
-  )
-
-## Run the model
-famrun1 <- jags.parallel(
-  data = famdata,
-  inits = faminit,
-  parameters.to.save = famparam,
-  n.chains = 3,
-  n.iter = 2000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = fammod
+fammod1 <- brm(
+  bf(
+    totalcount ~
+      1 + scale(min.size, center = TRUE) +
+      scale(total.length, center = TRUE) +
+      (scale(total.length, center = TRUE) | family),
+    zi ~ scale(min.size, center = TRUE)
+  ),
+  data = fam,
+  family = zero_inflated_poisson(link = "log",
+                                 link_zi = "logit"),
+  prior =
+    c(
+      set_prior("normal(0, 1)", class = "b"),
+      set_prior("lkj(2)", class = "cor"),
+      set_prior("normal(0, 1)", class = "Intercept"),
+      set_prior("exponential(1)", class = "sd"),
+      set_prior("normal(0, 1)", class = "b", dpar = "zi")
+    ),
+  warmup = 500,
+  iter = 2000,
+  chains = 3,
+  inits = "random",
+  cores = 8,
+  seed = 8913,
+  sample_prior = TRUE
 )
 
-famrun1
-famrun1mcmc <- as.mcmc(famrun1)
-xyplot(famrun1mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
+summary(fammod1)
+conditional_effects(fammod1)
 
-## Increase number of iterations to 10,000 
 
-famrun2 <- jags.parallel(
-  data = famdata,
-  inits = faminit,
-  parameters.to.save = famparam,
-  n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 2000,
-  n.thin = 2,
-  jags.seed = 123,
-  model = fammod
-)
-
-famrun2
-famrun2mcmc <- as.mcmc(famrun2)
-xyplot(famrun2mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
-
-## Inference
+#### Inference ####
 
 famHPD <- as.data.frame(summary(famrun2mcmc)$quantiles)
 
@@ -2025,6 +1811,9 @@ ggplot(famrun2long) +
   theme1
 
 dev.off()
+
+
+#### Predictions ####
 
 ## Run MCMC again and estimate mu
 
