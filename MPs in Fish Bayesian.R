@@ -23,7 +23,8 @@ extract.post <- function(x){
                  long$variable != "beta_p" &
                  long$variable != "r" &
                  long$variable != "rho" &
-                 long$variable != "mu_TL",]
+                 long$variable != "mu_TL" &
+                 long$variable != "phi",]
   long$variable <- as.character(long$variable)
   long$variable <- as.factor(long$variable)
   long
@@ -765,15 +766,15 @@ dev.off()
 set.seed(63189)
 
 gutdata.sim2 <-
-  data.frame(TL = rep(3, 2000),
-             min.size = seq(from = 0.5, to = 520, length.out = 2000),
-             sample.size = as.numeric(rep(50, 2000)),
-             PID = as.factor(rep(2, 2000)),
-             blanks = as.factor(rep(2, 2000)),
+  data.frame(TL = rep(3, 5000),
+             min.size = seq(from = 0.5, to = 520, length.out = 5000),
+             sample.size = as.numeric(rep(50, 5000)),
+             PID = as.factor(rep(2, 5000)),
+             blanks = as.factor(rep(2, 5000)),
              fibres = as.factor(sample(as.integer(gutdata$exclude.fib), 
-                                            2000, 
+                                            5000, 
                                             replace = TRUE)),
-             region = as.factor(rep(16, 2000)))
+             region = as.factor(rep(16, 5000)))
 
 gutdata.sim2$stand.TL <-
   (gutdata.sim2$TL - mean(gutdata$TL)) /
@@ -783,7 +784,7 @@ gutdata.sim2$stand.min.size <-
   (gutdata.sim2$min.size - mean(gutdata$min.size)) /
   sd(gutdata$min.size - mean(gutdata$min.size))
 
-for (i in 1:2000) {
+for (i in 1:5000) {
   phi <-
     plogis(
       run1$BUGSoutput$sims.list$alpha_p +
@@ -818,8 +819,8 @@ for (i in 1:2000) {
   gutdata.sim2$sample[i] <- sample(y, 1)
 }
 
-gutdata.sim2$exclude.fib <- mapvalues(gutdata.sim2$exclude.fib,
-                                      from = levels(gutdata.sim2$exclude.fib),
+gutdata.sim2$exclude.fib <- mapvalues(gutdata.sim2$fibres,
+                                      from = levels(gutdata.sim2$fibres),
                                       to = c("Fibres excluded",
                                              "Fibres not excluded"))
 
@@ -872,7 +873,7 @@ ggplot() +
     colour = pal[5]
   ) +
   facet_grid(. ~ exclude.fib, labeller = label_wrap_gen(width = 15)) +
-  coord_cartesian(ylim = c(0, 25), xlim = c(0, 510)) +
+  coord_cartesian(ylim = c(0, 50), xlim = c(0, 510)) +
   scale_y_continuous(trans = 'log1p',
                      breaks = c(0, 1, 10, 50),
                      expand = c(0, 0.05)) +
@@ -913,21 +914,38 @@ ingmod <- function()
   for(i in 1:N)
   {
     y[i] ~ dbinom(p[i], n[i])
-    logit(p[i]) <- alpha[region[i]] + beta[region[i]] * TL[i]
+    p[i] ~ dbeta(a[i], b[i])
+    a[i] <- phi * mu[i]
+    b[i] <- phi * (1 - mu[i])
+    logit(mu[i]) <- alpha_region[region[i]] + 
+      beta_TL[region[i]]*TL[i] +
+      beta_min.size*min.size[i]
+    
+    fitted[i] ~ dbinom(p[i], n[i])
   }
   
-  # Prior
-  for(j in 1:Nregions)
-  {
-    alpha[j] ~ dnorm(mu_region, tau_region)
-    beta[j] ~ dnorm(mu_TL, tau_TL)
+  # Priors
+  for(j in 1:nregion) {
+    alpha_region[j] <- B[j,1]
+    beta_TL[j] <- B[j,2]
+    B[j,1:2] ~ dmnorm(B.hat[j,], Tau.B[,])
+    B.hat[j,1] <- mu_region
+    B.hat[j,2] <- mu_TL
   }
   mu_region ~ dnorm(0, 1)
-  tau_region <- 1 / (sigma_region * sigma_region)
-  sigma_region ~ dexp(1)
   mu_TL ~ dnorm(0, 1)
-  tau_TL <- 1 / (sigma_TL * sigma_TL)
+  
+  Tau.B[1:2, 1:2] <- inverse(Sigma.B[,])
+  Sigma.B[1,1] <- pow(sigma_region, 2)
+  sigma_region ~ dexp(1)
+  Sigma.B[2,2] <- pow(sigma_TL, 2)
   sigma_TL ~ dexp(1)
+  Sigma.B[1,2] <- rho * sigma_region * sigma_TL
+  Sigma.B[2,1] <- Sigma.B[1,2]
+  rho ~ dnorm(0, 0.5); T(-1, 1)
+  
+  beta_min.size ~ dnorm(0, 1)
+  phi ~ dexp(1)
 }
 
 
@@ -936,24 +954,27 @@ inginit <- function()
 {
   list(
     "mu_region" = rnorm(1),
-    "sigma_region" = 1,
-    "mu_TL" = 1,
-    "sigma_TL" = 1
+    "sigma_region" = 3.58,
+    "mu_TL" = rnorm(1),
+    "sigma_TL" = 0.15,
+    "beta_min.size" = rnorm(1, -0.2, 0.1),
+    "phi" = 1.7
   )
 }
 
 ## Parameters to keep track of
-ingparam <- c("alpha", "beta")
+ingparam <- c("alpha_region", "beta_TL", "beta_min.size", "phi")
 
 
 ## Specify data
 ingdata <- list(
   N = nrow(ingestion),
-  Nregions = max(as.integer(ingestion$region)),
+  nregion = max(as.integer(ingestion$region)),
   y = as.numeric(ingestion$successes),
   n = as.numeric(ingestion$N),
   TL = as.numeric(scale(ingestion$TL, center = TRUE)),
-  region = as.integer(ingestion$region)
+  region = as.integer(ingestion$region),
+  min.size = as.numeric(scale(ingestion$min.size, center = TRUE))
 )
 
 
@@ -966,7 +987,7 @@ ingrun1 <- jags.parallel(
   n.iter = 2000,
   n.burnin = 1000,
   n.thin = 1,
-  jags.seed = 123,
+  jags.seed = 6174,
   model = ingmod
 )
 
@@ -975,7 +996,7 @@ ingrun1mcmc <- as.mcmc(ingrun1)
 xyplot(ingrun1mcmc, layout = c(6, ceiling(nvar(ingrun1mcmc)/6)))
 
 
-# Update iterations to 10000
+# Update iterations to 5000
 ingrun2 <- jags.parallel(
   data = ingdata,
   inits = inginit,
@@ -983,8 +1004,8 @@ ingrun2 <- jags.parallel(
   n.chains = 3,
   n.iter = 10000,
   n.burnin = 1000,
-  n.thin = 3,
-  jags.seed = 123,
+  n.thin = 1,
+  jags.seed = 51354,
   model = ingmod
 )
 
@@ -994,11 +1015,10 @@ xyplot(ingrun2mcmc,
        layout = c(6, ceiling(nvar(ingrun2mcmc)/6)))
 
 
+#### Occurrence mod - diagnostics ####
 
-#### Occurence mod - diagnostics ####
-
-## Rerun model to extract p
-ingparam2 <- c("p")
+## Rerun model to extract fitted values
+ingparam2 <- c("fitted")
 
 ingrun3 <- jags.parallel(
   data = ingdata,
@@ -1007,46 +1027,27 @@ ingrun3 <- jags.parallel(
   n.chains = 3,
   n.iter = 10000,
   n.burnin = 1000,
-  n.thin = 3,
-  jags.seed = 123,
+  n.thin = 1,
+  jags.seed = 51354,
   model = ingmod
 )
 
-ingrun3mcmc <- as.mcmc(ingrun3)
-
-ing.response <- t(ingrun3$BUGSoutput$sims.list$p)
+ing.response <- t(ingrun3$BUGSoutput$sims.list$fitted) / ingestion$N
 ing.observed <- ingestion$IR
-ing.fitted <- apply(t(ingrun3$BUGSoutput$sims.list$p),
+ing.fitted <- apply(t(ingrun3$BUGSoutput$sims.list$fitted) / ingestion$N,
                          1,
                          median)
 
 check.ingmod <- createDHARMa(simulatedResponse = ing.response,
                              observedResponse = ing.observed, 
                              fittedPredictedResponse = ing.fitted,
-                             integerResponse = F)
+                             integerResponse = F,
+                             seed = 5151)
 
-plot(check.ingmod)
+plot(check.ingmod)  
 
 
 #### Occurence mod - inference ####
-
-ingrunHPD <- as.data.frame(summary(ingrun2mcmc)$quantiles)
-
-ingrunMAP <- as.data.frame(summary(ingrun2mcmc)$statistics)
-
-## Extract MAP and HPDIs for the parameters
-Params2 <- data.frame(
-  parameter = as.factor(rownames(ingrunMAP)),
-  MAP = ingrunMAP[, 1],
-  lower = ingrunHPD[, 1],
-  upper = ingrunHPD[, 5]
-)
-
-with(ingestion, tapply(as.integer(region), region, mean))
-
-Params2 <- Params2[c(1:36), ]
-Params2$parameter <- as.character(Params2$parameter)
-Params2$parameter <- as.factor(Params2$parameter)
 
 ingrunparams <-
   c(
@@ -1068,6 +1069,7 @@ ingrunparams <-
     "Atlantic, Western Central",
     "Europe - Inland Waters",
     "Indian Ocean, Antarctic",
+    "Standardized lowest detectable particle size (microns)",
     "Standardized trophic level:Africa - Inland Waters",
     "Standardized trophic level:Indian Ocean, Eastern",
     "Standardized trophic level:Indian Ocean, Western",
@@ -1087,44 +1089,6 @@ ingrunparams <-
     "Standardized trophic level:Europe - Inland Waters",
     "Standardized trophic level:Indian Ocean, Antarctic"
   )
-
-Params2$parameter <- mapvalues(
-  Params2$parameter,
-  from = levels(Params2$parameter),
-  to = ingrunparams
-)
-
-Params2$sort <- c(nrow(Params2):1)
-
-png('Ingestion HPDI Plot.png', 
-    width = 14, 
-    height = 12, 
-    units = 'cm', 
-    res = 500)
-
-ggplot(Params2) +
-  geom_hline(aes(yintercept = 0),
-             linetype = 'dashed',
-             size = 0.5,
-             colour = pal[2]) +
-  geom_errorbar(aes(x = reorder(parameter, sort),
-                    ymin = lower,
-                    ymax = upper),
-                size = 0.25) +
-  geom_point(aes(x = reorder(parameter, sort),
-                 y = MAP),
-             size = 1.5,
-             shape = 16,
-             colour = pal[3]) +
-  labs(x = 'Coefficient',
-       y = '') +
-  coord_flip() +
-  theme1 +
-  theme(plot.margin = margin(0.1, 0.5, 0.1, 0.5, unit = 'cm'))
-
-dev.off()
-
-## Posterior density plots
 
 ingrun2long <- extract.post(ingrun2)
 
@@ -1165,11 +1129,11 @@ dev.off()
 
 
 ingestion$post.predict <-
-  as.data.frame(summary(ingrun3mcmc)$statistics)[2:640, 1]
+  apply(ing.response, 1, median)
 ingestion$lower95 <-
-  as.data.frame(summary(ingrun3mcmc)$quantiles)[2:640, 1]
+  apply(ing.response, 1, quantile, prob = 0.025)
 ingestion$upper95 <-
-  as.data.frame(summary(ingrun3mcmc)$quantiles)[2:640, 5]
+  apply(ing.response, 1, quantile, prob = 0.975)
 
 freshplot3 <-
   ggplot(subset(ingestion, study.habitat == 'Freshwater')) +
@@ -1226,6 +1190,9 @@ plot_grid(
 )
 
 dev.off()
+
+#### Occurrence mod - predictions ####
+
 
 
 #### Size mod - set up the data ####
