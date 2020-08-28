@@ -619,7 +619,7 @@ gutdata.sim1 <-
       length.out = 7000
     ),
     min.size = rep(100, 7000),
-    sample.size = rep(50, 7000),
+    sample.size = rpois(7000, 38.7),
     PID = as.integer(rep(2, 7000)),
     blanks = as.integer(rep(2, 7000)),
     fibres = as.integer(rep(1, 7000)),
@@ -697,12 +697,38 @@ gutdata.sim1$region <- mapvalues(gutdata.sim1$region,
                                         "Pacific: Southwest",
                                         "Pacific: Western Central"))
 
-png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 16, 
-    units = 'cm', res = 500)
+gutdata.sim1$area <-
+  with(gutdata.sim1,
+       as.factor(
+         ifelse(
+           region != "Africa - Inland Waters" &
+             region != "America: North - Inland Waters" &
+             region != "America: South - Inland Waters" &
+             region != "Asia - Inland Waters" &
+             region != "Europe - Inland Waters",
+           "Marine",
+           "Freshwater"
+         )
+       ))
 
-ggplot() +
+gutdata$area <-
+  as.factor(with(
+    gutdata,
+    ifelse(
+      region != "Africa - Inland Waters" &
+        region != "America: North - Inland Waters" &
+        region != "America: South - Inland Waters" &
+        region != "Asia - Inland Waters" &
+        region != "Europe - Inland Waters",
+      "Marine",
+      "Freshwater"
+    )
+  ))
+
+gutdata.a <-
+  ggplot() +
   geom_ribbon(
-    data = gutdata.sim1,
+    data = subset(gutdata.sim1, area == "Freshwater"),
     aes(x = TL,
         ymin = lower25,
         ymax = upper25),
@@ -710,7 +736,7 @@ ggplot() +
     fill = pal[1]
   ) +
   geom_ribbon(
-    data = gutdata.sim1,
+    data = subset(gutdata.sim1, area == "Freshwater"),
     aes(x = TL,
         ymin = lower50,
         ymax = upper50),
@@ -718,7 +744,7 @@ ggplot() +
     fill = pal[1]
   ) +
   geom_ribbon(
-    data = gutdata.sim1,
+    data = subset(gutdata.sim1, area == "Freshwater"),
     aes(x = TL,
         ymin = lower75,
         ymax = upper75),
@@ -726,19 +752,77 @@ ggplot() +
     fill = pal[1]
   ) +
   geom_ribbon(
-    data = gutdata.sim1,
+    data = subset(gutdata.sim1, area == "Freshwater"),
     aes(x = TL,
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
     fill = pal[1]
   ) +
-  geom_line(data = gutdata.sim1,
+  geom_line(data = subset(gutdata.sim1, area == "Freshwater"),
             aes(x = TL,
                 y = median),
             colour = pal[5]) +
   geom_point(
-    data = gutdata,
+    data = subset(gutdata, area == "Freshwater"),
+    aes(x = TL,
+        y = Mpsgut),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap( ~ region, ncol = 5,
+              labeller = label_wrap_gen(width = 15)) +
+  labs(x = 'Trophic Level',
+       y = "") +
+  coord_cartesian(ylim = c(0, 50)) +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 10, 50),
+                     expand = c(0, 0.05)) +
+  scale_x_continuous(expand = c(0, 0),
+                     limits = c(1.9, 5.1)) +
+  theme1
+
+gutdata.b <-
+  ggplot() +
+  geom_ribbon(
+    data = subset(gutdata.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(gutdata.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(gutdata.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(gutdata.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = subset(gutdata.sim1, area == "Marine"),
+            aes(x = TL,
+                y = median),
+            colour = pal[5]) +
+  geom_point(
+    data = subset(gutdata, area == "Marine"),
     aes(x = TL,
         y = Mpsgut),
     shape = 1,
@@ -758,6 +842,18 @@ ggplot() +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
   theme1
+
+png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 14, 
+    units = 'cm', res = 500)
+
+plot_grid(
+  gutdata.a,
+  gutdata.b,
+  labels = c('A', 'B'),
+  rel_heights = c(1, 2.5),
+  nrow = 2,
+  align = 'v'
+)
 
 dev.off()
 
@@ -886,6 +982,81 @@ ggplot() +
 
 dev.off()
 
+## Look at structural zeros
+
+for(i in 1:5000) {
+  phi <-
+    plogis(
+      run1$BUGSoutput$sims.list$alpha_p +
+        run1$BUGSoutput$sims.list$beta_p*gutdata.sim2$stand.min.size[i]
+    )
+  gutdata.sim2$median.phi[i] <- median(phi)
+  gutdata.sim2$upper25.phi[i] <- quantile(phi, 0.625)
+  gutdata.sim2$lower25.phi[i] <- quantile(phi, 0.375)
+  gutdata.sim2$upper50.phi[i] <- quantile(phi, 0.75)
+  gutdata.sim2$lower50.phi[i] <- quantile(phi, 0.25)
+  gutdata.sim2$upper75.phi[i] <- quantile(phi, 0.875)
+  gutdata.sim2$lower75.phi[i] <- quantile(phi, 0.125)
+  gutdata.sim2$upper95.phi[i] <- quantile(phi, 0.975)
+  gutdata.sim2$lower95.phi[i] <- quantile(phi, 0.025)
+  gutdata.sim2$sample.phi[i] <- sample(phi, 1)
+}
+
+png('MPs Methodology Zeros Plot.png', width = 6, height = 5, 
+    units = 'cm', res = 500)
+
+ggplot(gutdata.sim2) +
+  geom_point(aes(x = min.size,
+                 y = sample.phi),
+             size = 0.05,
+             fill = pal[1],
+             alpha = 0.3) +
+  coord_cartesian(ylim = c(0, 1), xlim = c(0, 510)) +
+  geom_ribbon(
+    aes(x = min.size,
+        ymin = lower25.phi,
+        ymax = upper25.phi),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    aes(x = min.size,
+        ymin = lower50.phi,
+        ymax = upper50.phi),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    aes(x = min.size,
+        ymin = lower75.phi,
+        ymax = upper75.phi),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    aes(x = min.size,
+        ymin = lower95.phi,
+        ymax = upper95.phi),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(aes(x = min.size,
+                y = median.phi),
+            colour = pal[5],
+            size = 0.5) +
+  scale_y_continuous(breaks = seq(from = 0,
+                                  to = 1,
+                                  by = 0.1),
+                     expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = expression(paste('Lowest Detectable Particle Size ('*mu*'m)')),
+       y = "Probability of a Structural Zero") +
+  theme1
+
+dev.off()
+
+
+
 #### Occurrence mod - set up the data ####
 
 ingestion <- subset(trophicfish2, !is.na(IR))
@@ -907,17 +1078,13 @@ summary(ingestion)
 
 #### Occurrence mod - fit model ####
 
-## Specify model
 ingmod <- function()
 {
   # Likelihood
   for(i in 1:N)
   {
     y[i] ~ dbinom(p[i], n[i])
-    p[i] ~ dbeta(a[i], b[i])
-    a[i] <- phi * mu[i]
-    b[i] <- phi * (1 - mu[i])
-    logit(mu[i]) <- alpha_region[region[i]] + 
+    logit(p[i]) <- alpha_region[region[i]] + 
       beta_TL[region[i]]*TL[i] +
       beta_min.size*min.size[i]
     
@@ -945,7 +1112,6 @@ ingmod <- function()
   rho ~ dnorm(0, 0.5); T(-1, 1)
   
   beta_min.size ~ dnorm(0, 1)
-  phi ~ dexp(1)
 }
 
 
@@ -954,16 +1120,15 @@ inginit <- function()
 {
   list(
     "mu_region" = rnorm(1),
-    "sigma_region" = 3.58,
+    "sigma_region" = 1,
     "mu_TL" = rnorm(1),
-    "sigma_TL" = 0.15,
-    "beta_min.size" = rnorm(1, -0.2, 0.1),
-    "phi" = 1.7
+    "sigma_TL" = 1,
+    "beta_min.size" = rnorm(1)
   )
 }
 
 ## Parameters to keep track of
-ingparam <- c("alpha_region", "beta_TL", "beta_min.size", "phi")
+ingparam <- c("alpha_region", "beta_TL", "beta_min.size")
 
 
 ## Specify data
@@ -984,9 +1149,10 @@ ingrun1 <- jags.parallel(
   inits = inginit,
   parameters.to.save = ingparam,
   n.chains = 3,
-  n.iter = 2000,
+  n.cluster = 8,
+  n.iter = 7000,
   n.burnin = 1000,
-  n.thin = 1,
+  n.thin = 4,
   jags.seed = 6174,
   model = ingmod
 )
@@ -996,58 +1162,40 @@ ingrun1mcmc <- as.mcmc(ingrun1)
 xyplot(ingrun1mcmc, layout = c(6, ceiling(nvar(ingrun1mcmc)/6)))
 
 
-# Update iterations to 5000
-ingrun2 <- jags.parallel(
-  data = ingdata,
-  inits = inginit,
-  parameters.to.save = ingparam,
-  n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 51354,
-  model = ingmod
-)
-
-ingrun2
-ingrun2mcmc <- as.mcmc(ingrun2)
-xyplot(ingrun2mcmc, 
-       layout = c(6, ceiling(nvar(ingrun2mcmc)/6)))
-
-
 #### Occurrence mod - diagnostics ####
 
 ## Rerun model to extract fitted values
 ingparam2 <- c("fitted")
 
-ingrun3 <- jags.parallel(
+ingrun2 <- jags.parallel(
   data = ingdata,
   inits = inginit,
   parameters.to.save = ingparam2,
   n.chains = 3,
-  n.iter = 10000,
+  n.cluster = 8,
+  n.iter = 7000,
   n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 51354,
+  n.thin = 4,
+  jags.seed = 6174,
   model = ingmod
 )
 
-ing.response <- t(ingrun3$BUGSoutput$sims.list$fitted) / ingestion$N
-ing.observed <- ingestion$IR
-ing.fitted <- apply(t(ingrun3$BUGSoutput$sims.list$fitted) / ingestion$N,
+ing.response <- t(ingrun2$BUGSoutput$sims.list$fitted)
+ing.observed <- ingestion$successes
+ing.fitted <- apply(t(ingrun2$BUGSoutput$sims.list$fitted),
                          1,
                          median)
 
 check.ingmod <- createDHARMa(simulatedResponse = ing.response,
                              observedResponse = ing.observed, 
                              fittedPredictedResponse = ing.fitted,
-                             integerResponse = F,
+                             integerResponse = T,
                              seed = 5151)
 
 plot(check.ingmod)  
 
 
-#### Occurence mod - inference ####
+#### Occurrence mod - inference ####
 
 ingrunparams <-
   c(
@@ -1090,13 +1238,13 @@ ingrunparams <-
     "Standardized trophic level:Indian Ocean, Antarctic"
   )
 
-ingrun2long <- extract.post(ingrun2)
+ingrun1long <- extract.post(ingrun1)
 
-ingrun2long$variable <- mapvalues(ingrun2long$variable,
-                               from = levels(ingrun2long$variable),
+ingrun1long$variable <- mapvalues(ingrun1long$variable,
+                               from = levels(ingrun1long$variable),
                                to = ingrunparams)
 
-ingrun2long$order <- c(nrow(ingrun2long):1)
+ingrun1long$order <- c(nrow(ingrun1long):1)
 
 png(
   'Ingestion Posteriors Plot.png',
@@ -1106,7 +1254,7 @@ png(
   res = 500
 )
 
-ggplot(ingrun2long) +
+ggplot(ingrun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
@@ -1129,11 +1277,11 @@ dev.off()
 
 
 ingestion$post.predict <-
-  apply(ing.response, 1, median)
+  apply(ing.response, 1, median)/ingestion$N
 ingestion$lower95 <-
-  apply(ing.response, 1, quantile, prob = 0.025)
+  apply(ing.response, 1, quantile, prob = 0.025)/ingestion$N
 ingestion$upper95 <-
-  apply(ing.response, 1, quantile, prob = 0.975)
+  apply(ing.response, 1, quantile, prob = 0.975)/ingestion$N
 
 freshplot3 <-
   ggplot(subset(ingestion, study.habitat == 'Freshwater')) +
@@ -1193,7 +1341,237 @@ dev.off()
 
 #### Occurrence mod - predictions ####
 
+## Simulate results according to trophic level
 
+set.seed(32156)
+
+ingestion.sim1 <-
+  data.frame(
+    TL = seq(
+      from = 1.9,
+      to = 5.1,
+      length.out = 10000
+    ),
+    min.size = rep(100, 10000),
+    sample.size = rep(50, 10000),
+    region = as.factor(sample(
+      as.integer(ingestion$region),
+      10000,
+      replace = TRUE
+    ))
+  )
+
+ingestion.sim1$stand.TL <-
+  (ingestion.sim1$TL - mean(ingestion$TL)) /
+  sd(ingestion$TL - mean(ingestion$TL))
+
+ingestion.sim1$stand.min.size <-
+  (ingestion.sim1$min.size - mean(ingestion$min.size)) /
+  sd(ingestion$min.size - mean(ingestion$min.size))
+
+for (i in 1:10000) {
+  p <-
+    plogis(
+      ingrun1$BUGSoutput$sims.list$alpha_region[, ingestion.sim1$region[i]] +
+        ingrun1$BUGSoutput$sims.list$beta_min.size * ingestion.sim1$stand.min.size[i] +
+        ingrun1$BUGSoutput$sims.list$beta_TL[, ingestion.sim1$region[i]] *
+        ingestion.sim1$stand.TL[i]
+    )
+  y <- rbinom(p,
+              prob = p,
+              size = ingestion.sim1$sample.size[i])/ingestion.sim1$sample.size[i]
+  ingestion.sim1$median[i] <- median(p)
+  ingestion.sim1$upper25[i] <- quantile(y, 0.625)
+  ingestion.sim1$lower25[i] <- quantile(y, 0.375)
+  ingestion.sim1$upper50[i] <- quantile(y, 0.75)
+  ingestion.sim1$lower50[i] <- quantile(y, 0.25)
+  ingestion.sim1$upper75[i] <- quantile(y, 0.875)
+  ingestion.sim1$lower75[i] <- quantile(y, 0.125)
+  ingestion.sim1$upper95[i] <- quantile(y, 0.975)
+  ingestion.sim1$lower95[i] <- quantile(y, 0.025)
+  ingestion.sim1$sample[i] <- sample(y, 1)
+}
+
+summary(ingestion.sim1)
+
+ingestion.sim1$region <- mapvalues(ingestion.sim1$region,
+                                 from = levels(ingestion.sim1$region),
+                                 to = c("Africa - Inland Waters",
+                                        "America: North - Inland Waters",
+                                        "Asia - Inland Waters",
+                                        "Atlantic: Eastern Central",
+                                        "Atlantic: Northeast",
+                                        "Atlantic: Southwest",
+                                        "Atlantic: Western Central",
+                                        "Europe - Inland Waters",
+                                        "Indian Ocean: Antarctic",
+                                        "Indian Ocean: Eastern",
+                                        "Indian Ocean: Western",
+                                        "Mediterranean and Black Sea",
+                                        "Pacific: Eastern Central",
+                                        "Pacific: Northeast",
+                                        "Pacific: Northwest",
+                                        "Pacific: Southeast",
+                                        "Pacific: Southwest",
+                                        "Pacific: Western Central"))
+
+ingestion.sim1$area <-
+  with(ingestion.sim1,
+       as.factor(
+         ifelse(
+           region != "Africa - Inland Waters" &
+             region != "America: North - Inland Waters" &
+             region != "Asia - Inland Waters" &
+             region != "Europe - Inland Waters",
+           "Marine",
+           "Freshwater"
+         )
+       ))
+
+ingestion$area <-
+  as.factor(with(
+    ingestion,
+    ifelse(
+      region != "Africa - Inland Waters" &
+        region != "America: North - Inland Waters" &
+        region != "Asia - Inland Waters" &
+        region != "Europe - Inland Waters",
+      "Marine",
+      "Freshwater"
+    )
+  ))
+
+ing.plot.a <- 
+  ggplot() +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Freshwater"),
+    aes(x = TL,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Freshwater"),
+    aes(x = TL,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Freshwater"),
+    aes(x = TL,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Freshwater"),
+    aes(x = TL,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = subset(ingestion.sim1, area == "Freshwater"),
+            aes(x = TL,
+                y = median),
+            colour = pal[5]) +
+  geom_point(
+    data = subset(ingestion, area == "Freshwater"),
+    aes(x = TL,
+        y = IR),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap(~ region,
+             labeller = label_wrap_gen(width = 15),
+             ncol = 4) +
+  labs(x = 'Trophic Level',
+       y = "Occurrence Rate") +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = seq(from = 0, to = 1, by = 0.25),
+                     expand = c(0, 0.01),
+                     limits = c(0, 1)) +
+  scale_x_continuous(expand = c(0, 0),
+                     limits = c(1.9, 5.1)) +
+  theme1
+
+ing.plot.b <- 
+  ggplot() +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(ingestion.sim1, area == "Marine"),
+    aes(x = TL,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = subset(ingestion.sim1, area == "Marine"),
+            aes(x = TL,
+                y = median),
+            colour = pal[5]) +
+  geom_point(
+    data = subset(ingestion, area == "Marine"),
+    aes(x = TL,
+        y = IR),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap(~ region,
+             labeller = label_wrap_gen(width = 15),
+             ncol = 4) +
+  labs(x = 'Trophic Level',
+       y = "Occurrence Rate") +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = seq(from = 0, to = 1, by = 0.25),
+                     expand = c(0, 0.01),
+                     limits = c(0, 1)) +
+  scale_x_continuous(expand = c(0, 0),
+                     limits = c(1.9, 5.1)) +
+  theme1
+
+png('Ingestion Rate Predictions Plot.png', width = 14, height = 18, 
+    units = 'cm', res = 500)
+
+plot_grid(
+  ing.plot.a,
+  ing.plot.b,
+  labels = c('A', 'B'),
+  rel_heights = c(1, 3.2),
+  nrow = 2,
+  align = 'v'
+)
+
+dev.off()
 
 #### Size mod - set up the data ####
 
@@ -1205,29 +1583,34 @@ length(unique(size$study))  # 61 studies
 length(unique(size$species))  # 327 species
 length(unique(size$study))  # 61 studies
 
+size$totalcounts <- round(with(size, Mpsgut*N))
+
 #### Size mod - fit model ####
 
 sizemod <- function()
 {
   # Likelihood
   for(i in 1:N) {
-    y[i] ~ dpois(mu[i])
-    mu[i] <- lambda[i] * (1 - z[i]) + 0.000001
-    z[i] <- dbern(phi[i])
-    logit(phi[i]) ~ alpha_phi + beta_phi * min.size[i]
-    log(lambda[i]) <-
-      log(sample.size) +
+    y[i] ~ dnegbin(p[i], r)
+    p[i] <- r/(r+(1-zero[i])*mu[i]) - 1e-10*zero[i]
+    zero[i] ~ dbern(pi[i])
+    logit(pi[i]) <- alpha_p + beta_p*min.size[i]
+    log(mu[i]) <-
+      log(sample.size[i]) +
       alpha_region[region[i]] +
-      beta_min.size * min.size[i] + 
-      beta_length[region[i]] * length[i]
+      beta_min.size*min.size[i] +
+      beta_length[region[i]]*length[i] +
+      gamma_exclude.fibs[exclude.fibs[i]]
     
-    # Fitted
-    fitted_counts[i] ~ dpois(mu[i])
-    fitted[i] <- fitted_counts[i]/sample.size[i]
-    }
-  # Priors
-  alpha_phi ~ dnorm(0, 1)
-  beta_phi ~ dnorm(0, 1)
+    ## Fitted values
+    fitted_counts[i] ~ dnegbin(p[i], r)
+    fitted[i] <- fitted_counts[i] / sample.size[i]
+  }
+  
+  ## Priors
+  alpha_p ~ dnorm(0, 1)
+  beta_p ~ dnorm(0, 1)
+  r ~ dexp(1)
   
   for(j in 1:nregion) {
     alpha_region[j] <- B[j,1]
@@ -1249,36 +1632,43 @@ sizemod <- function()
   rho ~ dnorm(0, 0.5); T(-1, 1)
   
   beta_min.size ~ dnorm(-1, 1)
+  
+  for(l in 1:2) {
+    gamma_exclude.fibs[l] ~ dnorm(0, 1)
+  }
 }
 
 ## Initial values
 sizemod_init <- function()
 {
   list(
-    "alpha_phi" = rnorm(1),
-    "beta_phi" = rnorm(1),
+    "alpha_p" = rnorm(1, -7.9, 5),
+    "beta_p" = rnorm(1, 1.9, 2),
+    "r" = 45.1,
     "mu_region" = rnorm(1),
     "mu_length" = rnorm(1),
-    "sigma_region" = rexp(1),
-    "sigma_length" = rexp(1),
-    "beta_min.size" = rnorm(1)
+    "sigma_region" = 1.0,
+    "sigma_length" = 0.1,
+    "beta_min.size" = rnorm(1, -0.4, 0.1),
+    "gamma_exclude.fibs" = rnorm(2)
   )
 }
 
 ## Parameters to keep track of
-sizemod_params <- c("alpha_phi", "beta_phi", "alpha_region", "beta_length",
-                    "beta_min.size")
+sizemod_params <- c("alpha_p", "beta_p", "r", "alpha_region", "beta_length",
+                    "beta_min.size", "gamma_exclude.fibs")
 
 ## Specify data
 
 sizedata <- list(
   N = nrow(size),
   y = as.numeric(size$totalcounts),
-  sample.size = as.numeric(size$N)
+  sample.size = as.numeric(size$N),
   min.size = as.numeric(scale(size$min.size, center = TRUE)),
   length = as.numeric(scale(size$total.length, center = TRUE)),
   region = as.integer(size$region),
-  nregion = max(as.integer(size$region))
+  nregion = max(as.integer(size$region)),
+  exclude.fibs = as.integer(size$exclude.fib)
 )
 
 ## Run the model
@@ -1287,60 +1677,38 @@ sizerun1 <- jags.parallel(
   inits = sizemod_init,
   parameters.to.save = sizemod_params,
   n.chains = 3,
-  n.iter = 1000,
-  n.burnin = 500,
-  n.thin = 1,
-  jags.seed = 123,
+  n.cluster = 8,
+  n.iter = 50000,
+  n.burnin = 5000,
+  n.thin = 10,
+  jags.seed = 554,
   model = sizemod
 )
 
 sizerun1
 sizerun1mcmc <- as.mcmc(sizerun1)
-xyplot(sizerun1mcmc)
+xyplot(sizerun1mcmc, layout = c(6, ceiling(nvar(ingrun1mcmc)/6)))
 
-## Increase to 5,000 interation
+#### Size mod - diagnostics ####
+
+sizemod_params2 <- c("fitted", "fitted_counts")
 
 sizerun2 <- jags.parallel(
   data = sizedata,
   inits = sizemod_init,
-  parameters.to.save = sizemod_params,
+  parameters.to.save = sizemod_params2,
   n.chains = 3,
-  n.iter = 5000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
+  n.cluster = 8,
+  n.iter = 50000,
+  n.burnin = 5000,
+  n.thin = 10,
+  jags.seed = 554,
   model = sizemod
 )
 
-sizerun2  # DIC = 753
-sizerun2mcmc <- as.mcmc(sizerun2)
-summary(sizerun2mcmc)
-xyplot(sizerun2mcmc)
-
-#### Size mod - diagnostics ####
-
-## Rerun model and extract fitted values
-
-sizemod_params1 <- c("fitted")
-
-sizerun3 <- jags.parallel(
-  data = sizedata,
-  inits = sizemod_init,
-  parameters.to.save = sizemod_params1,
-  n.chains = 3,
-  n.iter = 10000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 123,
-  model = sizemod
-)
-
-sizerun3
-sizerun3mcmc <- as.mcmc(sizerun3)
-
-sizemod.response <- t(sizerun3$BUGSoutput$sims.list$fitted)
-sizemod.observed <- ingestion$totalcounts
-sizemod.fitted <- apply(t(run3$BUGSoutput$sims.list$fitted),
+sizemod.response <- t(sizerun2$BUGSoutput$sims.list$fitted_counts)
+sizemod.observed <- size$totalcounts
+sizemod.fitted <- apply(t(sizerun2$BUGSoutput$sims.list$fitted_counts),
                          1,
                          median)
 
@@ -1352,59 +1720,6 @@ check.sizemod <- createDHARMa(simulatedResponse = sizemod.response,
 plot(check.sizemod)
 
 #### Size mod - inference ####
-
-sizeHPDI <- as.data.frame(summary(sizerun2mcmc)$quantiles)
-
-sizeMAP <- as.data.frame(summary(sizerun2mcmc)$statistics)
-
-## Extract MAP and HPDIs for the parameters
-sizeParams <- data.frame(
-  parameter = as.factor(rownames(sizeMAP)),
-  MAP = sizeMAP[, 1],
-  lower = sizeHPDI[, 1],
-  upper = sizeHPDI[, 5]
-)
-
-sizeParams <- sizeParams[-c(4:5), ]
-sizeParams$parameter <- as.character(sizeParams$parameter)
-sizeParams$parameter <- as.factor(sizeParams$parameter)
-
-sizeParams$parameter <- mapvalues(
-  sizeParams$parameter,
-  from = levels(sizeParams$parameter),
-  to = c(
-    "Intercept",
-    "Standardized Total Length (cm)",
-    "Standardized lowest detectable particle size (microns)"
-  )
-)
-
-png('Size Gut MPs HPDI Plot.png', 
-    width = 9, 
-    height = 2.25, 
-    units = 'cm', 
-    res = 500)
-
-ggplot(sizeParams) +
-  geom_hline(aes(yintercept = 0),
-             linetype = 'dashed',
-             size = 0.5,
-             colour = pal[2]) +
-  geom_errorbar(aes(x = parameter,
-                    ymin = lower,
-                    ymax = upper),
-                size = 0.25) +
-  geom_point(aes(x = parameter,
-                 y = MAP),
-             size = 1,
-             shape = 16,
-             colour = pal[3]) +
-  labs(x = 'Parameter',
-       y = '') +
-  coord_flip() +
-  theme1
-
-dev.off()
 
 ## Posterior density plots
 
@@ -1696,6 +2011,7 @@ sizeingrun2 <- jags.parallel(
   inits = sizeingmodinit,
   parameters.to.save = sizeingmodparam,
   n.chains = 3,
+  n.cluster = 8,
   n.iter = 10000,
   n.burnin = 1000,
   n.thin = 3,
@@ -1717,6 +2033,7 @@ sizeingrun3 <- jags.parallel(
   inits = sizeingmodinit,
   parameters.to.save = sizeingparam2,
   n.chains = 3,
+  n.cluster = 8,
   n.iter = 10000,
   n.burnin = 1000,
   n.thin = 3,
@@ -2027,6 +2344,7 @@ famrun1 <- jags.parallel(
   inits = faminit,
   parameters.to.save = famparam,
   n.chains = 3,
+  n.cluster = 8,
   n.iter = 2000,
   n.burnin = 1000,
   n.thin = 1,
@@ -2045,6 +2363,7 @@ famrun2 <- jags.parallel(
   inits = faminit,
   parameters.to.save = famparam,
   n.chains = 3,
+  n.cluster = 8,
   n.iter = 10000,
   n.burnin = 2000,
   n.thin = 2,
@@ -2185,6 +2504,7 @@ famrun3 <- jags.parallel(
   inits = faminit,
   parameters.to.save = famparam2,
   n.chains = 3,
+  n.cluster = 8,
   n.iter = 10000,
   n.burnin = 2000,
   n.thin = 2,
