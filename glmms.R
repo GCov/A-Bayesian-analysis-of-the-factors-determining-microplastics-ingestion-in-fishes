@@ -58,3 +58,14 @@ glmm5 <-
           family = nbinom1(link = "log"),
           ziformula = ~ scale(min.size, center = TRUE))
 summary(glmm5)
+
+glmm6 <-
+  glmmTMB(totalcount ~ 
+            offset(log(N)) +
+            exclude.fib +
+            scale(min.size, center = TRUE) - 1 + 
+            (scale(total.length, center = TRUE) | region),
+          data = size,
+          family = nbinom1(link = "log"))
+summary(glmm6)
+anova(glmm5, glmm6)

@@ -1577,6 +1577,8 @@ dev.off()
 
 size <- subset(gutdata, total.length != 'NA')
 size$life.stage <- as.factor(size$life.stage)
+size$region <- as.character(size$region)
+size$region <- as.factor(size$region)
 
 length(size$total.length)  # 394 data points remaining
 length(unique(size$study))  # 61 studies
@@ -1592,9 +1594,7 @@ sizemod <- function()
   # Likelihood
   for(i in 1:N) {
     y[i] ~ dnegbin(p[i], r)
-    p[i] <- r/(r+(1-zero[i])*mu[i]) - 1e-10*zero[i]
-    zero[i] ~ dbern(pi[i])
-    logit(pi[i]) <- alpha_p + beta_p*min.size[i]
+    p[i] <- r/(r + mu[i])
     log(mu[i]) <-
       log(sample.size[i]) +
       alpha_region[region[i]] +
@@ -1608,8 +1608,6 @@ sizemod <- function()
   }
   
   ## Priors
-  alpha_p ~ dnorm(0, 1)
-  beta_p ~ dnorm(0, 1)
   r ~ dexp(1)
   
   for(j in 1:nregion) {
@@ -1642,8 +1640,6 @@ sizemod <- function()
 sizemod_init <- function()
 {
   list(
-    "alpha_p" = rnorm(1, -7.9, 5),
-    "beta_p" = rnorm(1, 1.9, 2),
     "r" = 45.1,
     "mu_region" = rnorm(1),
     "mu_length" = rnorm(1),
@@ -1655,7 +1651,7 @@ sizemod_init <- function()
 }
 
 ## Parameters to keep track of
-sizemod_params <- c("alpha_p", "beta_p", "r", "alpha_region", "beta_length",
+sizemod_params <- c("r", "alpha_region", "beta_length",
                     "beta_min.size", "gamma_exclude.fibs")
 
 ## Specify data
@@ -1723,17 +1719,55 @@ plot(check.sizemod)
 
 ## Posterior density plots
 
-sizerun2long <- extract.post(sizerun2)
+sizemod_paramnames <-
+  c(
+    "Africa - Inland Waters (FAO area)",
+    "Indian Ocean, Antarctic (FAO area)",
+    "Indian Ocean, Eastern (FAO area)",
+    "Indian Ocean, Western (FAO area)",
+    "Mediterranean and Black Sea (FAO area)",
+    "Pacific, Eastern Central (FAO area)",
+    "Pacific, Northwest (FAO area)",
+    "Pacific, Southeast (FAO area)",
+    "Pacific, Southwest (FAO area)",
+    "Pacific, Western Central (FAO area)",
+    "America, North - Inland Waters (FAO area)",
+    "America, South - Inland Waters (FAO area)",
+    "Asia - Inland Waters (FAO area)",
+    "Atlantic, Eastern Central (FAO area)",
+    "Atlantic, Northeast (FAO area)",
+    "Atlantic, Southwest (FAO area)",
+    "Atlantic, Western Central (FAO area)",
+    "Europe - Inland Waters (FAO area)",
+    "Standardized total length (cm):Africa - Inland Waters",
+    "Standardized total length (cm):Indian Ocean, Antarctic",
+    "Standardized total length (cm):Indian Ocean, Eastern",
+    "Standardized total length (cm):Indian Ocean, Western",
+    "Standardized total length (cm):Mediterranean and Black Sea",
+    "Standardized total length (cm):Pacific, Eastern Central",
+    "Standardized total length (cm):Pacific, Northwest",
+    "Standardized total length (cm):Pacific, Southeast",
+    "Standardized total length (cm):Pacific, Southwest",
+    "Standardized total length (cm):Pacific, Western Central",
+    "Standardized total length (cm):America, North - Inland Waters",
+    "Standardized total length (cm):America, South - Inland Waters",
+    "Standardized total length (cm):Asia - Inland Waters",
+    "Standardized total length (cm):Atlantic, Eastern Central",
+    "Standardized total length (cm):Atlantic, Northeast",
+    "Standardized total length (cm):Atlantic, Southwest",
+    "Standardized total length (cm):Atlantic, Western Central",
+    "Standardized total length (cm):Europe - Inland Waters",
+    "Standardized lowest detectable particle size (microns)",
+    "Fibres excluded",
+    "Fibres not excluded")
 
-sizerun2long$variable <- mapvalues(sizerun2long$variable,
-                                  from = levels(sizerun2long$variable),
-                                  to = c(
-                                    "Intercept",
-                                    "Standardized Total Length (cm)",
-                                    "Standardized lowest detectable particle size (microns)"
-                                  ))
+sizerun1long <- extract.post(sizerun1)
 
-sizerun2long$order <- c(nrow(sizerun2long):1)
+sizerun1long$variable <- mapvalues(sizerun1long$variable,
+                                  from = levels(sizerun1long$variable),
+                                  to = sizemod_paramnames)
+
+sizerun1long$order <- c(nrow(sizerun1long):1)
 
 png(
   'Body Size Model Posteriors Plot.png',
@@ -1743,7 +1777,7 @@ png(
   res = 500
 )
 
-ggplot(sizerun2long) +
+ggplot(sizerun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
@@ -1763,14 +1797,12 @@ ggplot(sizerun2long) +
 
 dev.off()
 
-
-
-size$post.predict <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$statistics)[-1, 1]) - 0.00538
-size$lower95 <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 1]) - 0.00538
-size$upper95 <- 
-  exp(as.data.frame(summary(sizerun3mcmc)$quantiles)[-1, 5]) - 0.00538
+size$post.predict <-
+  apply(sizemod.response, 1, median)
+size$lower95 <-
+  apply(sizemod.response, 1, quantile, prob = 0.025)
+size$upper95 <-
+  apply(sizemod.response, 1, quantile, prob = 0.975)
 
 ## Plot
 png(
@@ -1808,114 +1840,245 @@ dev.off()
 
 #### Size mod - predictions ####
 
-## Simulate results for 1, 100, and 500 micron filter sizes
+set.seed(6554)
 
-size.post <- data.frame(sizerun2$BUGSoutput$sims.list)
+size.sim1 <-
+  data.frame(
+    length = seq(
+      from = 1,
+      to = 200,
+      length.out = 7000
+    ),
+    min.size = rep(100, 7000),
+    sample.size = rpois(7000, 38.7),
+    fibres = as.integer(rep(1, 7000)),
+    region = as.factor(sample(
+      as.integer(size$region),
+      7000,
+      replace = TRUE
+    ))
+  )
 
-set.seed(5251)
+size.sim1$stand.length <-
+  (size.sim1$length - mean(size$total.length)) /
+  sd(size$total.length - mean(size$total.length))
 
-generate.size.sim <- function(min.size, post, data) {
-  size.sim <- 
-    data.frame(length = seq(from = 1, to = 100, length.out = 5000),
-               min.size = rep(min.size, 5000))
-  
-  size.sim$stand.length <-
-    (size.sim$length - mean(data$total.length)) /
-    sd(data$total.length - mean(data$total.length))
-  
-  size.sim$stand.min.size <-
-    (size.sim$min.size - mean(data$min.size)) /
-    sd(data$min.size - mean(data$min.size))
-  
-  for (i in 1:5000) {
-    mu <-
-      post$alpha + post$beta_length * size.sim$stand.length[i] +
-      post$beta_min.size * size.sim$stand.min.size[i]
-    y <- exp(rnorm(5000, mu, post$sigma)) - 0.00538
-    size.sim$sigma[i] <- mean(post$sigma)
-    size.sim$mu[i] <- mean(mu)
-    size.sim$mean[i] <- exp(mean(mu)) - 0.00538
-    size.sim$upper25[i] <- quantile(y, 0.625)
-    size.sim$lower25[i] <- quantile(y, 0.375)
-    size.sim$upper50[i] <- quantile(y, 0.75)
-    size.sim$lower50[i] <- quantile(y, 0.25)
-    size.sim$upper75[i] <- quantile(y, 0.875)
-    size.sim$lower75[i] <- quantile(y, 0.125)
-    size.sim$upper95[i] <- quantile(y, 0.975)
-    size.sim$lower95[i] <- quantile(y, 0.025)
-  }
-  size.sim$sample <- with(size.sim, exp(rnorm(mu, mu, sigma)) - 0.00538)
-  size.sim
+size.sim1$stand.min.size <-
+  (size.sim1$min.size - mean(size$min.size)) /
+  sd(size$min.size - mean(size$min.size))
+
+for(i in 1:7000) {
+  mu <-
+    exp(
+      log(size.sim1$sample.size[i]) +
+        sizerun1$BUGSoutput$sims.list$alpha_region[, size.sim1$region[i]] +
+        sizerun1$BUGSoutput$sims.list$beta_min.size * size.sim1$stand.min.size[i] +
+        sizerun1$BUGSoutput$sims.list$beta_length[, size.sim1$region[i]] *
+        size.sim1$stand.length[i] +
+        sizerun1$BUGSoutput$sims.list$gamma_exclude.fibs[, size.sim1$fibres[i]]
+    )
+  r <- sizerun1$BUGSoutput$sims.list$r
+  p <- r / (mu + r)
+  y <- rnbinom(p,
+               prob = p,
+               size = r) / size.sim1$sample.size[i]
+  size.sim1$median[i] <- median(mu ) / size.sim1$sample.size[i]
+  size.sim1$upper25[i] <- quantile(y, 0.625)
+  size.sim1$lower25[i] <- quantile(y, 0.375)
+  size.sim1$upper50[i] <- quantile(y, 0.75)
+  size.sim1$lower50[i] <- quantile(y, 0.25)
+  size.sim1$upper75[i] <- quantile(y, 0.875)
+  size.sim1$lower75[i] <- quantile(y, 0.125)
+  size.sim1$upper95[i] <- quantile(y, 0.975)
+  size.sim1$lower95[i] <- quantile(y, 0.025)
 }
 
-sizeplot <- function(simdata){
-  ggplot(simdata) +
-    geom_point(aes(x = length,
-                   y = sample),
-               size = 0.25) +
-    geom_ribbon(aes(x = length,
-                    ymin = lower25,
-                    ymax = upper25),
-                alpha = 0.75,
-                fill = pal[1]) +
-    geom_ribbon(aes(x = length,
-                    ymin = lower50,
-                    ymax = upper50),
-                alpha = 0.5,
-                fill = pal[1]) +
-    geom_ribbon(aes(x = length,
-                    ymin = lower75,
-                    ymax = upper75),
-                alpha = 0.25,
-                fill = pal[1]) +
-    geom_ribbon(aes(x = length,
-                    ymin = lower95,
-                    ymax = upper95),
-                alpha = 0.05,
-                fill = pal[1]) +
-    geom_line(aes(x = length,
-                  y = mean),
-              colour = pal[5]) +
-    labs(x = 'Total Length (cm)',
-         y = expression(paste(
-           'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
-         ))) +
-    coord_cartesian(ylim = c(0, 1000)) +
-    scale_y_continuous(trans = 'log1p',
-                       expand = c(0, 0.05),
-                       breaks = c(0, 1, 10, 100, 1000)) +
-    scale_x_continuous(expand = c(0, 0),
-                       limits = c(0, 100)) +
-    theme1
-}
+summary(size.sim1)
 
-size.sim1 <- generate.size.sim(1, size.post, size)
+size.sim1$region <- mapvalues(size.sim1$region,
+                                 from = levels(size.sim1$region),
+                                 to = c("Africa - Inland Waters",
+                                        "America: North - Inland Waters",
+                                        "America: South - Inland Waters",
+                                        "Asia - Inland Waters",
+                                        "Atlantic: Eastern Central",
+                                        "Atlantic: Northeast",
+                                        "Atlantic: Southwest",
+                                        "Atlantic: Western Central",
+                                        "Europe - Inland Waters",
+                                        "Indian Ocean: Antarctic",
+                                        "Indian Ocean: Eastern",
+                                        "Indian Ocean: Western",
+                                        "Mediterranean and Black Sea",
+                                        "Pacific: Eastern Central",
+                                        "Pacific: Northwest",
+                                        "Pacific: Southeast",
+                                        "Pacific: Southwest",
+                                        "Pacific: Western Central"))
 
-sizeA <- sizeplot(size.sim1)
+size.sim1$area <-
+  with(size.sim1,
+       as.factor(
+         ifelse(
+           region != "Africa - Inland Waters" &
+             region != "America: North - Inland Waters" &
+             region != "America: South - Inland Waters" &
+             region != "Asia - Inland Waters" &
+             region != "Europe - Inland Waters",
+           "Marine",
+           "Freshwater"
+         )
+       ))
 
-size.sim2 <- generate.size.sim(100, size.post, size)
+size$area <-
+  as.factor(with(
+    size,
+    ifelse(
+      region != "Africa - Inland Waters" &
+        region != "America: North - Inland Waters" &
+        region != "America: South - Inland Waters" &
+        region != "Asia - Inland Waters" &
+        region != "Europe - Inland Waters",
+      "Marine",
+      "Freshwater"
+    )
+  ))
 
-sizeB <- sizeplot(size.sim2)
+size.a <-
+  ggplot() +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Freshwater"),
+    aes(x = length,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Freshwater"),
+    aes(x = length,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Freshwater"),
+    aes(x = length,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Freshwater"),
+    aes(x = length,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = subset(size.sim1, area == "Freshwater"),
+            aes(x = length,
+                y = median),
+            colour = pal[5]) +
+  geom_point(
+    data = subset(size, area == "Freshwater"),
+    aes(x = total.length,
+        y = Mpsgut),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap( ~ region, ncol = 5,
+              labeller = label_wrap_gen(width = 15)) +
+  labs(x = "",
+       y = "") +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 10, 100),
+                     expand = c(0, 0.1)) +
+  scale_x_continuous(expand = c(0, 0.1),
+                     limits = c(1, 200),
+                     breaks = c(1, 50, 100, 150, 200)) +
+  theme1
 
-size.sim3 <- generate.size.sim(500, size.post, size)
+size.b <-
+  ggplot() +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Marine"),
+    aes(x = length,
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Marine"),
+    aes(x = length,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Marine"),
+    aes(x = length,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    fill = pal[1]
+  ) +
+  geom_ribbon(
+    data = subset(size.sim1, area == "Marine"),
+    aes(x = length,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    fill = pal[1]
+  ) +
+  geom_line(data = subset(size.sim1, area == "Marine"),
+            aes(x = length,
+                y = median),
+            colour = pal[5]) +
+  geom_point(
+    data = subset(size, area == "Marine"),
+    aes(x = total.length,
+        y = Mpsgut),
+    shape = 1,
+    size = 0.5,
+    colour = pal[5]
+  ) +
+  facet_wrap( ~ region, ncol = 5,
+              labeller = label_wrap_gen(width = 15)) +
+  labs(x = 'Total Length (cm)',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  scale_y_continuous(trans = 'log1p',
+                     breaks = c(0, 1, 10, 100),
+                     expand = c(0, 0.1)) +
+  scale_x_continuous(expand = c(0, 0.1),
+                     limits = c(1, 200),
+                     breaks = c(1, 50, 100, 150, 200)) +
+  theme1
 
-sizeC <- sizeplot(size.sim3)
+png('MPs by Total Length Predictions Plot.png', width = 14, height = 14, 
+    units = 'cm', res = 500)
 
-png(
-  'Size Effects Predictions Plot.png',
-  width = 19,
-  height = 7,
-  units = 'cm',
-  res = 500
+plot_grid(
+  size.a,
+  size.b,
+  labels = c('A', 'B'),
+  rel_heights = c(1, 2.5),
+  nrow = 2,
+  align = 'v'
 )
-
-plot_grid(sizeA, sizeB, sizeC, ncol = 3, labels = "AUTO")
 
 dev.off()
 
 #### Occurrence x size mod - set up the data ####
 
-sizeing <- subset(allo, !is.na(IR))
+sizeing <- subset(size, !is.na(IR))
 
 ## Convert to successes/failures
 
