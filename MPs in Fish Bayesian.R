@@ -452,7 +452,7 @@ run1long$order <- c(nrow(run1long):1)
 png(
   'Gut Content Posteriors Plot.png',
   width = 14,
-  height = 19,
+  height = 14,
   units = 'cm',
   res = 500
 )
@@ -830,7 +830,7 @@ gutdata.b <-
                      limits = c(1.9, 5.1)) +
   theme1
 
-png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 14, 
+png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 12, 
     units = 'cm', res = 500)
 
 plot_grid(
@@ -900,7 +900,7 @@ gutdata.sim2$exclude.fib <- mapvalues(gutdata.sim2$fibres,
                                       to = c("Fibres excluded",
                                              "Fibres not excluded"))
 
-png('MPs Methodology Predictions Plot.png', width = 14, height = 8, 
+png('MPs Methodology Predictions Plot.png', width = 9, height = 5, 
     units = 'cm', res = 500)
 
 ggplot() +
@@ -1178,7 +1178,7 @@ ingrun1long$order <- c(nrow(ingrun1long):1)
 png(
   'Ingestion Posteriors Plot.png',
   width = 14,
-  height = 14,
+  height = 12,
   units = 'cm',
   res = 500
 )
@@ -1285,11 +1285,12 @@ ingestion.sim1 <-
     min.size = rep(100, 10000),
     sample.size = rep(50, 10000),
     fibres = as.integer(rep(1, 10000)),
-    region = as.factor(sample(
-      as.integer(ingestion$region),
-      10000,
-      replace = TRUE
-    ))
+    region = as.factor(sample(seq(
+      from = 1,
+      to = max(as.integer(ingestion$region))
+    ),
+    10000,
+    replace = TRUE))
   )
 
 ingestion.sim1$stand.TL <-
@@ -1421,9 +1422,9 @@ ing.plot.a <-
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
-             ncol = 4) +
-  labs(x = 'Trophic Level',
-       y = "Occurrence Rate") +
+             ncol = 5) +
+  labs(x = '',
+       y = "") +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25),
                      expand = c(0, 0.05),
                      limits = c(0, 1)) +
@@ -1479,7 +1480,7 @@ ing.plot.b <-
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
-             ncol = 4) +
+             ncol = 5) +
   labs(x = 'Trophic Level',
        y = "Occurrence Rate") +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25),
@@ -1489,16 +1490,15 @@ ing.plot.b <-
                      limits = c(1.9, 5.1)) +
   theme1
 
-png('Ingestion Rate Predictions Plot.png', width = 14, height = 18, 
+png('Ingestion Rate Predictions Plot.png', width = 14, height = 12, 
     units = 'cm', res = 500)
 
 plot_grid(
   ing.plot.a,
   ing.plot.b,
   labels = c('A', 'B'),
-  rel_heights = c(1, 3.2),
-  nrow = 2,
-  align = 'v'
+  rel_heights = c(1, 2.6),
+  nrow = 2
 )
 
 dev.off()
@@ -1783,11 +1783,12 @@ size.sim1 <-
     min.size = rep(100, 7000),
     sample.size = rpois(7000, 38.7),
     fibres = as.integer(rep(1, 7000)),
-    region = as.factor(sample(
-      as.integer(size$region),
-      7000,
-      replace = TRUE
-    ))
+    region = as.factor(sample(seq(
+      from = 1,
+      to = max(as.integer(size$region))
+    ),
+    7000,
+    replace = TRUE))
   )
 
 size.sim1$stand.length <-
@@ -1993,7 +1994,7 @@ size.b <-
                      breaks = c(1, 50, 100, 150, 200)) +
   theme1
 
-png('MPs by Total Length Predictions Plot.png', width = 14, height = 14, 
+png('MPs by Total Length Predictions Plot.png', width = 14, height = 12, 
     units = 'cm', res = 500)
 
 plot_grid(
@@ -2473,7 +2474,7 @@ sizeing.plot.a <-
                      limits = c(0, 1)) +
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
-                     breaks = c(1, 50, 100, 150, 200)) +
+                     breaks = c(1, 100, 200)) +
   theme1
 
 sizeing.plot.b <- 
@@ -2532,10 +2533,10 @@ sizeing.plot.b <-
                      limits = c(0, 1)) +
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
-                     breaks = c(1, 50, 100, 150, 200)) +
+                     breaks = c(1, 100, 200)) +
   theme1
 
-png('Ingestion Rate by Size Predictions Plot.png', width = 14, height = 14, 
+png('Ingestion Rate by Size Predictions Plot.png', width = 9, height = 12, 
     units = 'cm', res = 500)
 
 plot_grid(
@@ -2568,70 +2569,71 @@ fam$family <- as.factor(fam$family)
 
 #### Family mod - fit model ####
 
-fammod <- function()
-{
-  # Likelihood
-  for (i in 1:N)
-  {
-    y[i] ~ dnegbin(p[i], r)
-    p[i] <- r/(r + mu[i])
-    log(mu[i]) <-
-      log(sample.size) +
-      alpha_family[family[i]] + 
-      beta_min.size*min.size[i] +
-      beta_length[family[i]]*length[i] +
-      gamma_exclude.fibs[exclude.fibs[i]]
+fammod <- 
+  function() {
+    # Likelihood
+    for(i in 1:N) {
+      y[i] ~ dnegbin(p[i], r)
+      p[i] <- r/(r + mu[i])
+      log(mu[i]) <-
+        log(sample.size[i]) +
+        alpha_family[family[i]] +
+        beta_min.size*min.size[i] +
+        beta_length[family[i]]*length[i] +
+        gamma_exclude.fibs[exclude.fibs[i]]
+      
+      ## Fitted values
+      fitted[i] ~ dnegbin(p[i], r)
+    }
+    ## Priors
+    r ~ dexp(0.1)
+    
+    for(j in 1:nfamily) {
+      alpha_family[j] <- B[j,1]
+      beta_length[j] <- B[j,2]
+      B[j,1:2] ~ dmnorm(B.hat[j,], Tau.B[,])
+      B.hat[j,1] <- mu_family
+      B.hat[j,2] <- mu_length
+    }
+    mu_family ~ dnorm(0, 1)
+    mu_length ~ dnorm(0, 1)
+    
+    Tau.B[1:2, 1:2] <- inverse(Sigma.B[,])
+    Sigma.B[1,1] <- pow(sigma_family, 2)
+    sigma_family ~ dexp(1)
+    Sigma.B[2,2] <- pow(sigma_length, 2)
+    sigma_length ~ dexp(1)
+    Sigma.B[1,2] <- rho * sigma_family * sigma_length
+    Sigma.B[2,1] <- Sigma.B[1,2]
+    rho ~ dnorm(0, 0.5); T(-1, 1)
+    
+    beta_min.size ~ dnorm(-1, 1)
+    
+    for(k in 1:2) {
+      gamma_exclude.fibs[k] ~ dnorm(0, 1)
+    }
   }
-  
-  # Prior
-  r ~ dexp(1)
-  
-  for(j in 1:nfamily) {
-    alpha_family[j] <- B[j,1]
-    beta_length[j] <- B[j,2]
-    B[j,1:2] ~ dmnorm(B.hat[j,], Tau.B[,])
-    B.hat[j,1] <- mu_family
-    B.hat[j,2] <- mu_length
-  }
-  mu_family ~ dnorm(0, 1)
-  mu_length ~ dnorm(0, 1)
-  
-  Tau.B[1:2, 1:2] <- inverse(Sigma.B[,])
-  Sigma.B[1,1] <- pow(sigma_family, 2)
-  sigma_family ~ dexp(1)
-  Sigma.B[2,2] <- pow(sigma_length, 2)
-  sigma_length ~ dexp(1)
-  Sigma.B[1,2] <- rho * sigma_family * sigma_length
-  Sigma.B[2,1] <- Sigma.B[1,2]
-  rho ~ dnorm(0, 0.5); T(-1, 1)
-  
-  beta_min.size ~ dnorm(-1, 1)
-  
-  for(k in 1:2) {
-    gamma_exclude.fibs[k] ~ dnorm(0, 1)
-  }
-}
 
 ## Generate initial values for MCMC
 
 faminit <- function()
 {
   list(
-    "r" = rexp(1),
-    "beta_min.size" = rnorm(1),
+    "r" = dexp(0.1),
     "mu_family" = rnorm(1),
-    "sigma_family" = rexp(1),
     "mu_length" = rnorm(1),
+    "sigma_family" = rexp(1),
     "sigma_length" = rexp(1),
-    "rho" = runif(1, -1, 1),
-    "gamma_exclude.fib" = rnorm(1)
+    "beta_min.size" = rnorm(1),
+    "gamma_exclude.fibs" = rnorm(2),
+    "rho" = 0
   )
 }
 
 ## Keep track of parameters
 
-famparam <- c("r", "beta_min.size", "alpha_family",
-              "beta_length", "gamma_exclude.fib")
+famparam <- c("beta_min.size", "alpha_family",
+              "beta_length", "gamma_exclude.fibs", "r")
 
 ## Specify data
 
@@ -2640,7 +2642,7 @@ famdata <-
     y = fam$totalcount,
     length = as.numeric(scale(fam$total.length, center = TRUE)),
     min.size = as.numeric(scale(fam$min.size, center = TRUE)),
-    family = as.integer(fam$family),
+    family = as.integer(as.factor(fam$family)),
     N = nrow(fam),
     nfamily = max(as.integer(fam$family)),
     exclude.fibs = as.integer(as.factor(fam$exclude.fib)),
@@ -2654,10 +2656,10 @@ famrun1 <- jags.parallel(
   parameters.to.save = famparam,
   n.chains = 3,
   n.cluster = 8,
-  n.iter = 2000,
-  n.burnin = 1000,
-  n.thin = 1,
-  jags.seed = 3265,
+  n.iter = 70000,
+  n.burnin = 5000,
+  n.thin = 40,
+  jags.seed = 5156,
   model = fammod
 )
 
@@ -2665,46 +2667,37 @@ famrun1
 famrun1mcmc <- as.mcmc(famrun1)
 xyplot(famrun1mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
 
-## Increase number of iterations to 10,000 
+#### Family mod - diagnostics ####
+
+famparam2 <- "fitted"
 
 famrun2 <- jags.parallel(
   data = famdata,
   inits = faminit,
-  parameters.to.save = famparam,
+  parameters.to.save = famparam2,
   n.chains = 3,
   n.cluster = 8,
-  n.iter = 10000,
-  n.burnin = 2000,
-  n.thin = 2,
-  jags.seed = 123,
+  n.iter = 70000,
+  n.burnin = 5000,
+  n.thin = 40,
+  jags.seed = 5156,
   model = fammod
 )
 
-famrun2
-famrun2mcmc <- as.mcmc(famrun2)
-xyplot(famrun2mcmc, layout = c(6, ceiling(nvar(famrun1mcmc)/6)))
+fammod.response <- t(famrun2$BUGSoutput$sims.list$fitted)
+fammod.observed <- fam$totalcounts
+fammod.fitted <- apply(t(famrun2$BUGSoutput$sims.list$fitted),
+                        1,
+                        median)
 
-#### Family mod - diagnostics ####
+check.fammod <- createDHARMa(simulatedResponse = fammod.response,
+                              observedResponse = fammod.observed, 
+                              fittedPredictedResponse = fammod.fitted,
+                              integerResponse = T)
+
+plot(check.fammod)
 
 #### Family mod - inference ####
-
-famHPD <- as.data.frame(summary(famrun2mcmc)$quantiles)
-
-famMAP <- as.data.frame(summary(famrun2mcmc)$statistics)
-
-## Extract MAP and HPDIs for the parameters
-fam.par.est <- data.frame(
-  parameter = as.factor(rownames(famMAP)),
-  MAP = famMAP[, 1],
-  lower = famHPD[, 1],
-  upper = famHPD[, 5]
-)
-
-with(fam, tapply(as.integer(family), family, mean))
-
-fam.par.est <- fam.par.est[-c(26:27), ]
-fam.par.est$parameter <- as.character(fam.par.est$parameter)
-fam.par.est$parameter <- as.factor(fam.par.est$parameter)
 
 famrun_paramNames <-
   c("Acanthuridae",
@@ -2731,63 +2724,32 @@ famrun_paramNames <-
     "Standarized total length:Gobiidae",
     "Standarized total length:Mugilidae",
     "Standarized total length:Mullidae",
-    "Standardized lowest detectable particle size (microns)")
-
-
-fam.par.est$parameter <-
-  mapvalues(fam.par.est$parameter,
-            from = levels(fam.par.est$parameter),
-            to = famrun_paramNames)
-
-png('Gut Content Family HPDI Plot.png', 
-    width = 14, 
-    height = 9, 
-    units = 'cm', 
-    res = 500)
-
-ggplot(fam.par.est) +
-  geom_hline(aes(yintercept = 0),
-             linetype = 'dashed',
-             size = 0.5,
-             colour = pal[2]) +
-  geom_errorbar(aes(x = reorder(parameter, MAP),
-                    ymin = lower,
-                    ymax = upper),
-                size = 0.25) +
-  geom_point(aes(x = reorder(parameter, MAP),
-                 y = MAP),
-             size = 1,
-             shape = 16,
-             colour = pal[3]) +
-  labs(x = 'Coefficient',
-       y = '') +
-  coord_flip() +
-  theme1
-
-dev.off()
+    "Standardized lowest detectable particle size (microns)",
+    "Fibres excluded",
+    "Fibres not excluded")
 
 ## Posterior density plots
 
-famrun2long <- extract.post(famrun2)
+famrun1long <- extract.post(famrun1)
 
-famrun2long$variable <- mapvalues(famrun2long$variable,
-                                      from = levels(famrun2long$variable),
+famrun1long$variable <- mapvalues(famrun1long$variable,
+                                      from = levels(famrun1long$variable),
                                       to = famrun_paramNames)
 
-famrun2long$order <- c(nrow(famrun2long):1)
+famrun1long$order <- c(nrow(famrun1long):1)
 
 png(
   'Family Model Posteriors Plot.png',
   width = 14,
-  height = 10,
+  height = 8,
   units = 'cm',
   res = 500
 )
 
-ggplot(famrun2long) +
+ggplot(famrun1long) +
   geom_density_ridges(
     aes(x = value,
-        y = reorder(variable, value, mean)),
+        y = reorder(variable, order, mean)),
     fill = pal[1],
     colour = pal[5],
     alpha = 0.75
@@ -2804,41 +2766,22 @@ ggplot(famrun2long) +
 
 dev.off()
 
-## Run MCMC again and estimate mu
-
-famparam2 <- "mu"
-
-famrun3 <- jags.parallel(
-  data = famdata,
-  inits = faminit,
-  parameters.to.save = famparam2,
-  n.chains = 3,
-  n.cluster = 8,
-  n.iter = 10000,
-  n.burnin = 2000,
-  n.thin = 2,
-  jags.seed = 123,
-  model = fammod
-)
-
-famrun3mcmc <- as.mcmc(famrun3)
-
 fam$post.predict <-
-  exp(as.data.frame(summary(famrun4mcmc)$statistics)[2:181, 1]) - 0.00538
+  apply(fammod.response, 1, median)
 fam$lower95 <-
-  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 1]) - 0.00538
+  apply(fammod.response, 1, quantile, prob = 0.025)
 fam$upper95 <-
-  exp(as.data.frame(summary(famrun4mcmc)$quantiles)[2:181, 5]) - 0.00538
+  apply(fammod.response, 1, quantile, prob = 0.975)
 
 png('Gut Content Family Bayesian Plot.png', width = 9, height = 10, units = 'cm', 
     res = 500)
 
 ggplot(fam) +
-  geom_ribbon(aes(x = min.size, ymin = lower95, ymax = upper95), 
+  geom_ribbon(aes(x = total.length, ymin = lower95/N, ymax = upper95/N), 
               alpha = 0.75, fill = pal[3]) +
-  geom_line(aes(x = min.size, y = post.predict),
+  geom_line(aes(x = total.length, y = post.predict/N),
             size = 0.5, alpha = 0.8) +
-  geom_point(aes(x = min.size, y = Mpsgut),
+  geom_point(aes(x = total.length, y = Mpsgut),
              shape = 1, size = 0.5, alpha = 0.5) +
   facet_wrap(~ reorder(family, Mpsgut, mean), ncol = 3) +
   labs(x = expression(paste('Minimum Detectable Particle Size ('*mu*'m)')),
@@ -2851,39 +2794,59 @@ ggplot(fam) +
 
 dev.off()
 
+#### Family mod - predictions ####
+
 ## Simulate predictions for different families if LDPS is held to 100 microns
 
 set.seed(5251)
 
-fam.sim <- 
-  data.frame(family = as.factor(sample(as.integer(fam$family), 
-                                       5000,
-                                       replace = TRUE)),
-             length = rep(20, 5000),
-             min.size = rep(100, 5000))
-fam.sim$stand.length <-
-  (fam.sim$length - mean(fam$total.length)) /
+fam.sim1 <-
+  expand.grid(length = mean(fam$total.length),
+              min.size = 100,
+              fibres = as.integer(2),
+              family = unique(as.integer(fam$family)))
+fam.sim1$sample.size <- rpois(nrow(fam.sim1), 38.7)
+
+fam.sim1$stand.length <-
+  (fam.sim1$length - mean(fam$total.length)) /
   sd(fam$total.length - mean(fam$total.length))
-  
-fam.sim$stand.min.size <-
-  (fam.sim$min.size - mean(fam$min.size)) /
+
+fam.sim1$stand.min.size <-
+  (fam.sim1$min.size - mean(fam$min.size)) /
   sd(fam$min.size - mean(fam$min.size))
-  
-for (i in 1:5000) {
+
+for(i in 1:nrow(fam.sim1)) {
   mu <-
-    famrun2$BUGSoutput$sims.list$alpha[, fam.sim$family[i]] +
-    (famrun2$BUGSoutput$sims.list$beta_length[, fam.sim$family[i]] *
-       fam.sim$stand.length[i]) +
-    (famrun2$BUGSoutput$sims.list$beta_min.size *
-       fam.sim$stand.min.size[i])
-  fam.sim$predict[i] <-
-    exp(rnorm(1, mu, famrun2$BUGSoutput$sims.list$sigma)) - 0.00538
+    exp(
+      log(fam.sim1$sample.size[i]) +
+        famrun1$BUGSoutput$sims.list$alpha_family[, fam.sim1$family[i]] +
+        famrun1$BUGSoutput$sims.list$beta_min.size * fam.sim1$stand.min.size[i] +
+        famrun1$BUGSoutput$sims.list$beta_length[, fam.sim1$family[i]] *
+        fam.sim1$stand.length[i] +
+        famrun1$BUGSoutput$sims.list$gamma_exclude.fibs[, fam.sim1$fibres[i]]
+    )
+  r <- famrun1$BUGSoutput$sims.list$r
+  p <- r / (mu + r)
+  y <- rnbinom(p,
+               prob = p,
+               size = r) / fam.sim1$sample.size[i]
+  fam.sim1$median[i] <- median(mu ) / fam.sim1$sample.size[i]
+  fam.sim1$upper25[i] <- quantile(y, 0.625)
+  fam.sim1$lower25[i] <- quantile(y, 0.375)
+  fam.sim1$upper50[i] <- quantile(y, 0.75)
+  fam.sim1$lower50[i] <- quantile(y, 0.25)
+  fam.sim1$upper75[i] <- quantile(y, 0.875)
+  fam.sim1$lower75[i] <- quantile(y, 0.125)
+  fam.sim1$upper95[i] <- quantile(y, 0.975)
+  fam.sim1$lower95[i] <- quantile(y, 0.025)
 }
 
-fam.sim$family <- as.factor(fam.sim$family)
+summary(fam.sim1)
 
-fam.sim$family <- mapvalues(fam.sim$family,
-                            from = levels(fam.sim$family),
+fam.sim1$family <- as.factor(fam.sim1$family)
+
+fam.sim1$family <- mapvalues(fam.sim1$family,
+                            from = levels(fam.sim1$family),
                             to = c("Acanthuridae",
                                    "Carangidae",
                                    "Clupeidae",
@@ -2900,20 +2863,49 @@ fam.sim$family <- mapvalues(fam.sim$family,
 png(
   'Family Model Predictions Plot.png',
   width = 9,
-  height = 8,
+  height = 7,
   units = 'cm',
   res = 500
 )
 
 ggplot() +
-  geom_violin(
-    data = fam.sim,
+  geom_linerange(
+    data = fam.sim1,
     aes(x = family,
-        y = predict),
-    fill = pal[3],
-    alpha = 0.8,
-    size = 0.5
+        ymin = lower25,
+        ymax = upper25),
+    alpha = 0.75,
+    colour = pal[1]
   ) +
+  geom_linerange(
+    data = fam.sim1,
+    aes(x = family,
+        ymin = lower50,
+        ymax = upper50),
+    alpha = 0.5,
+    colour = pal[1]
+  ) +
+  geom_linerange(
+    data = fam.sim1,
+    aes(x = family,
+        ymin = lower75,
+        ymax = upper75),
+    alpha = 0.25,
+    colour = pal[1]
+  ) +
+  geom_linerange(
+    data = fam.sim1,
+    aes(x = family,
+        ymin = lower95,
+        ymax = upper95),
+    alpha = 0.05,
+    colour = pal[1]
+  ) +
+  geom_point(data = fam.sim1,
+            aes(x = family,
+                y = median),
+            colour = pal[1],
+            size = 1.5) +
   geom_jitter(
     data = fam,
     aes(x = family,
@@ -2928,8 +2920,8 @@ ggplot() +
        ))) +
   scale_y_continuous(trans = 'log1p', 
                      expand = c(0, 0), 
-                     limits = c(-0.1, 325),
-                     breaks = c(0, 1, 10, 100, 300)) +
+                     limits = c(-0.1, 60),
+                     breaks = c(0, 1, 10, 50)) +
   theme1 +
   theme(axis.text.x = element_text(angle = 50, hjust = 1))
 

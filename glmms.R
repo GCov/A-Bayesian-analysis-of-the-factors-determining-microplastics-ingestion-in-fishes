@@ -70,3 +70,15 @@ glmm6 <-
           family = nbinom1(link = "log"))
 summary(glmm6)
 anova(glmm5, glmm6)
+
+glmm7 <- 
+  glmmTMB(totalcount ~ 
+            offset(log(N)) +
+            exclude.fib +
+            scale(min.size, center = TRUE) - 1 + 
+            (scale(total.length, center = TRUE) | family),
+          data = fam,
+          family = poisson(link = "log"))
+summary(glmm7)
+res7 <- simulateResiduals(glmm7)
+plot(res7)
