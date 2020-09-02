@@ -614,7 +614,7 @@ gutdata.sim1 <-
     sample.size = rpois(7000, 38.7),
     PID = as.integer(rep(2, 7000)),
     blanks = as.integer(rep(2, 7000)),
-    fibres = as.integer(rep(1, 7000)),
+    fibres = as.integer(rep(2, 7000)),
     region = as.factor(sample(seq(
       from = 1,
       to = max(as.integer(gutdata$region))
@@ -762,7 +762,7 @@ gutdata.a <-
               labeller = label_wrap_gen(width = 15)) +
   labs(x = 'Trophic Level',
        y = "") +
-  coord_cartesian(ylim = c(0, 100)) +
+  coord_cartesian(ylim = c(0, 150)) +
   scale_y_continuous(trans = 'log1p',
                      breaks = c(0, 1, 10, 100),
                      expand = c(0, 0.05)) +
@@ -822,7 +822,7 @@ gutdata.b <-
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
        ))) +
-  coord_cartesian(ylim = c(0, 100)) +
+  coord_cartesian(ylim = c(0, 150)) +
   scale_y_continuous(trans = 'log1p',
                      breaks = c(0, 1, 10, 100),
                      expand = c(0, 0.05)) +
@@ -830,7 +830,7 @@ gutdata.b <-
                      limits = c(1.9, 5.1)) +
   theme1
 
-png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 12, 
+png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 13, 
     units = 'cm', res = 500)
 
 plot_grid(
@@ -851,7 +851,7 @@ set.seed(63189)
 gutdata.sim2 <-
   data.frame(TL = rep(3, 7000),
              min.size = seq(from = 0.5, to = 520, length.out = 7000),
-             sample.size = as.numeric(rep(50, 7000)),
+             sample.size = rpois(7000, 38.7),
              PID = as.factor(rep(2, 7000)),
              blanks = as.factor(rep(2, 7000)),
              fibres = as.factor(sample(as.integer(gutdata$exclude.fib), 
@@ -1283,8 +1283,8 @@ ingestion.sim1 <-
       length.out = 10000
     ),
     min.size = rep(100, 10000),
-    sample.size = rep(50, 10000),
-    fibres = as.integer(rep(1, 10000)),
+    sample.size = rpois(10000, 38.7),
+    fibres = as.integer(rep(2, 10000)),
     region = as.factor(sample(seq(
       from = 1,
       to = max(as.integer(ingestion$region))
@@ -1782,7 +1782,7 @@ size.sim1 <-
     ),
     min.size = rep(100, 7000),
     sample.size = rpois(7000, 38.7),
-    fibres = as.integer(rep(1, 7000)),
+    fibres = as.integer(rep(2, 7000)),
     region = as.factor(sample(seq(
       from = 1,
       to = max(as.integer(size$region))
@@ -2326,8 +2326,8 @@ sizeing.sim1 <-
       length.out = 10000
     ),
     min.size = rep(100, 10000),
-    sample.size = rep(50, 10000),
-    fibres = as.integer(rep(1, 10000)),
+    sample.size = rpois(10000, 38.7),
+    fibres = as.integer(rep(2, 10000)),
     region = as.factor(sample(
       as.integer(sizeing$region),
       10000,
@@ -2526,7 +2526,7 @@ sizeing.plot.b <-
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
              ncol = 4) +
-  labs(x = 'Trophic Level',
+  labs(x = 'Total Length (cm)',
        y = "Occurrence Rate") +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25),
                      expand = c(0, 0.05),
@@ -2863,7 +2863,7 @@ fam.sim1$family <- mapvalues(fam.sim1$family,
 png(
   'Family Model Predictions Plot.png',
   width = 9,
-  height = 7,
+  height = 9,
   units = 'cm',
   res = 500
 )
@@ -2871,46 +2871,52 @@ png(
 ggplot() +
   geom_linerange(
     data = fam.sim1,
-    aes(x = family,
+    aes(x = reorder(family, median, mean),
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    colour = pal[1]
+    colour = pal[1],
+    size = 1
   ) +
   geom_linerange(
     data = fam.sim1,
-    aes(x = family,
+    aes(x = reorder(family, median, mean),
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    colour = pal[1]
+    colour = pal[1],
+    size = 1
   ) +
   geom_linerange(
     data = fam.sim1,
-    aes(x = family,
+    aes(x = reorder(family, median, mean),
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    colour = pal[1]
+    colour = pal[1],
+    size = 1
   ) +
   geom_linerange(
     data = fam.sim1,
-    aes(x = family,
+    aes(x = reorder(family, median, mean),
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    colour = pal[1]
+    colour = pal[1],
+    size = 1
   ) +
   geom_point(data = fam.sim1,
-            aes(x = family,
+            aes(x = reorder(family, median, mean),
                 y = median),
-            colour = pal[1],
-            size = 1.5) +
+            colour = pal[5],
+            fill = pal[3],
+            size = 3,
+            shape = 21) +
   geom_jitter(
     data = fam,
-    aes(x = family,
+    aes(x = reorder(family, Mpsgut, mean),
         y = Mpsgut),
-    size = 0.5,
+    size = 0.75,
     colour = pal[5],
     shape = 1
   ) +
@@ -2931,8 +2937,8 @@ dev.off()
 
 ## Plot according to lower limit of detection
 
-png('Lower Limit Plot.png', width = 19, height = 10, 
-    units = 'cm', res = 500)
+png('Lower Limit Plot.png', width = 19, height = 11, 
+    units = 'cm', res = 600)
 
 ggplot(gutdata) +
   geom_point(aes(
@@ -2942,6 +2948,7 @@ ggplot(gutdata) +
     colour = min.size
   ),
   alpha = 0.5) +
+  facet_grid(area ~ ., scales = "free_y", space = "free_y") +
   labs(
     x = 'FAO Area',
     y = expression(paste(
@@ -2952,36 +2959,47 @@ ggplot(gutdata) +
     size = 'Sample Size'
   ) +
   scale_y_continuous(
-    breaks = c(0, 1, 5, 10, 20, 30),
+    breaks = c(0, seq(1, 9, 1), 10, 15, seq(20, 40, 10)),
     expand = c(0, 0.05),
     trans = 'log1p'
   ) +
   coord_flip() +
   scale_colour_gradient2(low = pal[3], mid = pal[2], high = pal[1],
-                         midpoint = 250) +
-  theme1
+                         midpoint = 250, 
+                         breaks = c(0.2, seq(from = 100, to = 500, by = 100))) +
+  scale_size(breaks = c(1, seq(from = 200, to = 1400, by = 200))) +
+  theme1 +
+  theme(legend.margin = margin(0, 0, 0, 0, unit = 'cm'),
+        panel.grid.major.x = element_line(colour = pal[5], 
+                                          linetype = "dashed",
+                                          size = 0.25),
+        legend.position = "bottom",
+        legend.spacing = unit(1, units = "cm"),
+        legend.justification = "left")
 
 dev.off()
 
 ## Plot MP concentrations by region
 
-png('MP Concentration by Region.png', width = 14, height = 10, 
-    units = 'cm', res = 500)
+png('MP Occurrence Rate by Region.png', width = 19, height = 12, 
+    units = 'cm', res = 700)
 
-ggplot(gutdata) + 
-  geom_density_ridges(aes(x = Mpsgut,
-                          y = reorder(region, Mpsgut, mean)),
+ggplot(ingestion) + 
+  geom_density_ridges(aes(x = IR,
+                          y = reorder(region, IR, mean)),
                       fill = pal[2],
-                      alpha = 0.8,
-                      scale = 0.9) +
-  geom_point(aes(x = Mpsgut,
+                      colour = pal[5],
+                      alpha = 0.75,
+                      scale = 1) +
+  geom_point(aes(x = IR,
                  y = region),
-             size = 1, alpha = 0.3, colour = pal[5]) +
-  labs(x = expression(paste(
-         "Microplastic Concentration (particles '" ~
-           ind ^ -1 * ")")),
+             size = 1.5, alpha = 0.3, colour = pal[3]) +
+  facet_grid(area ~ ., scales = "free_y", space = "free_y") +
+  scale_x_continuous(limits = c(0, 1), expand = c(0, 0.01)) +
+  labs(x = "Occurrence Rate",
        y = "FAO Area") +
-  theme1
+  theme1 +
+  theme(panel.grid.major.y = element_line(colour = pal[5], size = 0.25))
 
 dev.off()
 
