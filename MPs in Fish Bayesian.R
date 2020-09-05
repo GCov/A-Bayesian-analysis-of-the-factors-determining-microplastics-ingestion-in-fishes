@@ -177,29 +177,18 @@ trophicfish2$study.habitat <- as.factor(trophicfish2$study.habitat)
 trophicfish2$environment <- as.factor(trophicfish2$environment)
 
 trophicfish2$region <- as.factor(trophicfish2$region)
-trophicfish2$area <- 
-  mapvalues(trophicfish2$region,
-            from = levels(trophicfish2$region),
-            to = c('Freshwater', 'Freshwater',
-                   'Freshwater', 'Freshwater',
-                   'Atlantic', 'Atlantic',
-                   'Atlantic', 'Atlantic',
-                   'Freshwater', 'Indian Ocean',
-                   'Indian Ocean', 'Indian Ocean',
-                   'Mediterranean and Black Sea', 'Pacific',
-                   'Pacific', 'Pacific',
-                   'Pacific', 'Pacific',
-                   'Pacific'))
+
+
 #### TL gut mod - set up the data ####
 
 gutdata <- subset(trophicfish2, Mpsgut != 'NA' & 
                     environment != '')
 summary(gutdata)
 summary(gutdata$author)
-length(gutdata$species) # 732 data points
+nrow(gutdata) # 735 data points
 length(unique(gutdata$species)) # 552 species
 length(unique(gutdata$family)) # from 157 families
-length(unique(gutdata$study)) # from 103 studies
+length(unique(gutdata$study)) # from 106 studies
 
 summary(gutdata)
 gutdata$region <- as.character(gutdata$region)
@@ -335,9 +324,9 @@ run1 <- jags.parallel(
   parameters.to.save = TLgutparam,
   n.chains = 3,
   n.cluster = 8,
-  n.iter = 50000,
+  n.iter = 75000,
   n.burnin = 5000,
-  n.thin = 20,
+  n.thin = 25,
   jags.seed = 3156,
   model = TLgutmod
 )
@@ -356,9 +345,9 @@ run2 <- jags.parallel(
   parameters.to.save = TLgutparam2,
   n.chains = 3,
   n.cluster = 8,
-  n.iter = 50000,
+  n.iter = 75000,
   n.burnin = 5000,
-  n.thin = 20,
+  n.thin = 25,
   jags.seed = 6546,
   model = TLgutmod
 )
@@ -378,22 +367,10 @@ plot(check.TLgutmod)
 
 #### TL gut mod - inference ####
 
-# "Bathypelagic (environment)",
-# "Pelagic-neritic (environment",
-# "Pelagic-oceanic (environment)",
-# "Reef-associated (environment)",
-# "Bathydemersal (environment)",
-# "Benthopelagic (environment",
-# "Demersal (environment)",
-# "Freshwater benthopelagic (environment)",
-# "Freshwater demersal (environment)",
-# "Freshwater pelagic (environment)",
-# "Freshwater pelagic-neritic (environment)",
-# "Pelagic (environment)",
-
 gutmod_paramnames <-
   c(
     "Africa - Inland Waters (FAO area)",
+    "Europe - Inland Waters (FAO area)",
     "Indian Ocean, Antarctic (FAO area)",
     "Indian Ocean, Eastern (FAO area)",
     "Indian Ocean, Western (FAO area)",
@@ -403,17 +380,18 @@ gutmod_paramnames <-
     "Pacific, Northwest (FAO area)",
     "Pacific, Southeast (FAO area)",
     "Pacific, Southwest (FAO area)",
-    "Pacific, Western Central (FAO area)",
     "America, North - Inland Waters (FAO area)",
+    "Pacific, Western Central (FAO area)",
     "America, South - Inland Waters (FAO area)",
     "Asia - Inland Waters (FAO area)",
     "Atlantic, Eastern Central (FAO area)",
     "Atlantic, Northeast (FAO area)",
+    "Atlantic: Northwest (FAO area)",
     "Atlantic, Southwest (FAO area)",
     "Atlantic, Western Central (FAO area)",
-    "Europe - Inland Waters (FAO area)",
     "Standardized lowest detectable particle size (microns)",
     "Standardized trophic level:Africa - Inland Waters",
+    "Standardized trophic level:Europe - Inland Waters",
     "Standardized trophic level:Indian Ocean, Antarctic",
     "Standardized trophic level:Indian Ocean, Eastern",
     "Standardized trophic level:Indian Ocean, Western",
@@ -423,15 +401,15 @@ gutmod_paramnames <-
     "Standardized trophic level:Pacific, Northwest",
     "Standardized trophic level:Pacific, Southeast",
     "Standardized trophic level:Pacific, Southwest",
-    "Standardized trophic level:Pacific, Western Central",
     "Standardized trophic level:America, North - Inland Waters",
+    "Standardized trophic level:Pacific, Western Central",
     "Standardized trophic level:America, South - Inland Waters",
     "Standardized trophic level:Asia - Inland Waters",
     "Standardized trophic level:Atlantic, Eastern Central",
     "Standardized trophic level:Atlantic, Northeast",
+    "Standardized trophic level:Atlantic, Northwest",
     "Standardized trophic level:Atlantic, Southwest",
     "Standardized trophic level:Atlantic, Western Central",
-    "Standardized trophic level:Europe - Inland Waters",
     "Blanks not used",
     "Blanks used",
     "Fibres excluded",
@@ -452,7 +430,7 @@ run1long$order <- c(nrow(run1long):1)
 png(
   'Gut Content Posteriors Plot.png',
   width = 14,
-  height = 14,
+  height = 15,
   units = 'cm',
   res = 500
 )
@@ -670,6 +648,7 @@ gutdata.sim1$region <- mapvalues(gutdata.sim1$region,
                                         "Asia - Inland Waters",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
+                                        "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
                                         "Europe - Inland Waters",
@@ -972,10 +951,10 @@ ingestion <- subset(trophicfish2, !is.na(IR))
 ingestion$successes <- round(with(ingestion, N * IR), digits = 0)
 ingestion$failures <- round(with(ingestion,  N * (1 - IR), digits = 0))
 
-length(ingestion$species) # 639 data points
+length(ingestion$species) # 642 data points
 length(unique(ingestion$species)) # 478 species
 length(unique(ingestion$family)) # from 157 families
-length(unique(ingestion$study)) # 105 studies
+length(unique(ingestion$study)) # 108 studies
 
 ingestion$region <- as.character(ingestion$region)
 ingestion$region <- as.factor(ingestion$region)
@@ -1126,6 +1105,7 @@ plot(check.ingmod)
 ingrunparams <-
   c(
     "Africa - Inland Waters",
+    "Indian Ocean, Antarctic",
     "Indian Ocean, Eastern",
     "Indian Ocean, Western",
     "Mediterranean and Black Sea",
@@ -1139,12 +1119,13 @@ ingrunparams <-
     "Asia - Inland Waters",
     "Atlantic, Eastern Central",
     "Atlantic, Northeast",
+    "Atlantic, Northwest",
     "Atlantic, Southwest",
     "Atlantic, Western Central",
     "Europe - Inland Waters",
-    "Indian Ocean, Antarctic",
     "Standardized lowest detectable particle size (microns)",
     "Standardized trophic level:Africa - Inland Waters",
+    "Standardized trophic level:Indian Ocean, Antarctic",
     "Standardized trophic level:Indian Ocean, Eastern",
     "Standardized trophic level:Indian Ocean, Western",
     "Standardized trophic level:Mediterranean and Black Sea",
@@ -1158,10 +1139,10 @@ ingrunparams <-
     "Standardized trophic level:Asia - Inland Waters",
     "Standardized trophic level:Atlantic, Eastern Central",
     "Standardized trophic level:Atlantic, Northeast",
+    "Standardized trophic level:Atlantic, Northwest",
     "Standardized trophic level:Atlantic, Southwest",
     "Standardized trophic level:Atlantic, Western Central",
     "Standardized trophic level:Europe - Inland Waters",
-    "Standardized trophic level:Indian Ocean, Antarctic",
     "Fibres excluded",
     "Fibres not excluded",
     "Study standard deviation"
@@ -1178,7 +1159,7 @@ ingrun1long$order <- c(nrow(ingrun1long):1)
 png(
   'Ingestion Posteriors Plot.png',
   width = 14,
-  height = 12,
+  height = 13,
   units = 'cm',
   res = 500
 )
@@ -1334,6 +1315,7 @@ ingestion.sim1$region <- mapvalues(ingestion.sim1$region,
                                         "Asia - Inland Waters",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
+                                        "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
                                         "Europe - Inland Waters",
@@ -1510,10 +1492,9 @@ size$life.stage <- as.factor(size$life.stage)
 size$region <- as.character(size$region)
 size$region <- as.factor(size$region)
 
-length(size$total.length)  # 394 data points remaining
-length(unique(size$study))  # 61 studies
+length(size$total.length)  # 395 data points remaining
+length(unique(size$study))  # 62 studies
 length(unique(size$species))  # 327 species
-length(unique(size$study))  # 61 studies
 
 size$totalcounts <- round(with(size, Mpsgut*N))
 
@@ -1570,10 +1551,10 @@ sizemod <- function()
 sizemod_init <- function()
 {
   list(
-    "r" = 45.1,
+    "r" = 46.2,
     "mu_region" = rnorm(1),
     "mu_length" = rnorm(1),
-    "sigma_region" = 1.0,
+    "sigma_region" = 1.1,
     "sigma_length" = 0.1,
     "beta_min.size" = rnorm(1, -0.4, 0.1),
     "gamma_exclude.fibs" = rnorm(2)
@@ -1652,6 +1633,7 @@ plot(check.sizemod)
 sizemod_paramnames <-
   c(
     "Africa - Inland Waters (FAO area)",
+    "Europe - Inland Waters (FAO area)",
     "Indian Ocean, Antarctic (FAO area)",
     "Indian Ocean, Eastern (FAO area)",
     "Indian Ocean, Western (FAO area)",
@@ -1666,10 +1648,11 @@ sizemod_paramnames <-
     "Asia - Inland Waters (FAO area)",
     "Atlantic, Eastern Central (FAO area)",
     "Atlantic, Northeast (FAO area)",
+    "Atlantic, Northwest (FAO area)",
     "Atlantic, Southwest (FAO area)",
     "Atlantic, Western Central (FAO area)",
-    "Europe - Inland Waters (FAO area)",
     "Standardized total length (cm):Africa - Inland Waters",
+    "Standardized total length (cm):Europe - Inland Waters",
     "Standardized total length (cm):Indian Ocean, Antarctic",
     "Standardized total length (cm):Indian Ocean, Eastern",
     "Standardized total length (cm):Indian Ocean, Western",
@@ -1684,9 +1667,9 @@ sizemod_paramnames <-
     "Standardized total length (cm):Asia - Inland Waters",
     "Standardized total length (cm):Atlantic, Eastern Central",
     "Standardized total length (cm):Atlantic, Northeast",
+    "Standardized total length (cm):Atlantic, Northwest",
     "Standardized total length (cm):Atlantic, Southwest",
     "Standardized total length (cm):Atlantic, Western Central",
-    "Standardized total length (cm):Europe - Inland Waters",
     "Standardized lowest detectable particle size (microns)",
     "Fibres excluded",
     "Fibres not excluded")
@@ -1835,6 +1818,7 @@ size.sim1$region <- mapvalues(size.sim1$region,
                                         "Asia - Inland Waters",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
+                                        "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
                                         "Europe - Inland Waters",
@@ -2017,10 +2001,10 @@ sizeing <- subset(size, !is.na(IR))
 sizeing$successes <- round(with(sizeing, N * IR), digits = 0)
 sizeing$failures <- round(with(sizeing,  N * (1 - IR), digits = 0))
 
-length(sizeing$species) # 257 data points
+length(sizeing$species) # 258 data points
 length(unique(sizeing$species)) # 215 species
 length(unique(sizeing$family)) # from 93 families
-length(unique(sizeing$study)) # 47 studies
+length(unique(sizeing$study)) # 48 studies
 
 sizeing$region <- as.character(sizeing$region)
 sizeing$region <- as.factor(sizeing$region)
@@ -2168,6 +2152,7 @@ plot(check.sizeingmod)
 sizeing_paramNames <-
   c(
     "Africa - Inland Waters",
+    "Indian Ocean, Antarctic",
     "Indian Ocean, Eastern",
     "Indian Ocean, Western",
     "Mediterranean and Black Sea",
@@ -2179,11 +2164,12 @@ sizeing_paramNames <-
     "Asia - Inland Waters",
     "Atlantic, Eastern Central",
     "Atlantic, Northeast",
+    "Atlantic, Northwest",
     "Atlantic, Southwest",
     "Atlantic, Western Central",
     "Europe - Inland Waters",
-    "Indian Ocean, Antarctic",
     "Standardized total length:Africa - Inland Waters",
+    "Standardized total length:Indian Ocean, Antarctic",
     "Standardized total length:Indian Ocean, Eastern",
     "Standardized total length:Indian Ocean, Western",
     "Standardized total length:Mediterranean and Black Sea",
@@ -2195,10 +2181,10 @@ sizeing_paramNames <-
     "Standardized total length:Asia - Inland Waters",
     "Standardized total length:Atlantic, Eastern Central",
     "Standardized total length:Atlantic, Northeast",
+    "Standardized total length:Atlantic, Northwest",
     "Standardized total length:Atlantic, Southwest",
     "Standardized total length:Atlantic, Western Central",
     "Standardized total length:Europe - Inland Waters",
-    "Standardized total length:Indian Ocean, Antarctic",
     "Standardized lowest detectable particle size (microns)",
     "Fibres excluded",
     "Fibres not excluded",
@@ -2217,7 +2203,7 @@ sizeingrun1long$order <- c(nrow(sizeingrun1long):1)
 png(
   'Body Size Ingestion Model Posteriors Plot.png',
   width = 14,
-  height = 12,
+  height = 13,
   units = 'cm',
   res = 500
 )
@@ -2328,11 +2314,12 @@ sizeing.sim1 <-
     min.size = rep(100, 10000),
     sample.size = rpois(10000, 38.7),
     fibres = as.integer(rep(2, 10000)),
-    region = as.factor(sample(
-      as.integer(sizeing$region),
-      10000,
-      replace = TRUE
-    ))
+    region = as.factor(sample(seq(
+      from = 1,
+      to = max(as.integer(sizeing$region))
+    ),
+    10000,
+    replace = TRUE))
   )
 
 sizeing.sim1$stand.length <-
@@ -2378,6 +2365,7 @@ sizeing.sim1$region <- mapvalues(
     "Asia - Inland Waters",
     "Atlantic: Eastern Central",
     "Atlantic: Northeast",
+    "Atlantic: Northwest",
     "Atlantic: Southwest",
     "Atlantic: Western Central",
     "Europe - Inland Waters",
@@ -2536,14 +2524,14 @@ sizeing.plot.b <-
                      breaks = c(1, 100, 200)) +
   theme1
 
-png('Ingestion Rate by Size Predictions Plot.png', width = 9, height = 12, 
+png('Ingestion Rate by Size Predictions Plot.png', width = 9, height = 13, 
     units = 'cm', res = 500)
 
 plot_grid(
   sizeing.plot.a,
   sizeing.plot.b,
   labels = c('A', 'B'),
-  rel_heights = c(1, 2.7),
+  rel_heights = c(1, 3.2),
   nrow = 2,
   align = 'v'
 )
@@ -2965,8 +2953,8 @@ ggplot(gutdata) +
   ) +
   coord_flip() +
   scale_colour_gradient2(low = pal[3], mid = pal[2], high = pal[1],
-                         midpoint = 250, 
-                         breaks = c(0.2, seq(from = 100, to = 500, by = 100))) +
+                         midpoint = 500, 
+                         breaks = c(0.2, 250, 500, 750, 1000)) +
   scale_size(breaks = c(1, seq(from = 200, to = 1400, by = 200))) +
   theme1 +
   theme(legend.margin = margin(0, 0, 0, 0, unit = 'cm'),
