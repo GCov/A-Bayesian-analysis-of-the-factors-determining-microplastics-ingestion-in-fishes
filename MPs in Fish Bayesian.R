@@ -43,11 +43,7 @@ theme1 <-
     panel.grid = element_blank()
   )
 
-pal <- c("#c52f01",  #rust
-         "#b88100",  #dark goldenrod 
-         "#0076a9",  #celadon blue
-         "#5a8400",  #avocado
-         "#011e44")  #oxford blue
+pal <- c("#0f0a0a","#f5efed","#2292a4","#bdbf09","#d96c06")
 
 #### Set up the data ####
 trophicfish <- 
@@ -323,11 +319,11 @@ run1 <- jags.parallel(
   inits = TLgutinit,
   parameters.to.save = TLgutparam,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 75000,
   n.burnin = 5000,
   n.thin = 25,
-  jags.seed = 3156,
+  jags.seed = 6546,
   model = TLgutmod
 )
 
@@ -344,7 +340,7 @@ run2 <- jags.parallel(
   inits = TLgutinit,
   parameters.to.save = TLgutparam2,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 75000,
   n.burnin = 5000,
   n.thin = 25,
@@ -430,7 +426,7 @@ run1long$order <- c(nrow(run1long):1)
 png(
   'Gut Content Posteriors Plot.png',
   width = 14,
-  height = 15,
+  height = 16,
   units = 'cm',
   res = 500
 )
@@ -959,6 +955,9 @@ length(unique(ingestion$study)) # 108 studies
 ingestion$region <- as.character(ingestion$region)
 ingestion$region <- as.factor(ingestion$region)
 
+ingestion$study <- as.character(ingestion$study)
+ingestion$study <- as.factor(ingestion$study)
+
 summary(ingestion)
 
 #### Occurrence mod - fit model ####
@@ -1054,7 +1053,7 @@ ingrun1 <- jags.parallel(
   inits = inginit,
   parameters.to.save = ingparam,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 7000,
   n.burnin = 1000,
   n.thin = 4,
@@ -1077,11 +1076,11 @@ ingrun2 <- jags.parallel(
   inits = inginit,
   parameters.to.save = ingparam2,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 7000,
   n.burnin = 1000,
   n.thin = 4,
-  jags.seed = 6174,
+  jags.seed = 8461,
   model = ingmod
 )
 
@@ -1098,6 +1097,8 @@ check.ingmod <- createDHARMa(simulatedResponse = ing.response,
                              seed = 5151)
 
 plot(check.ingmod)  
+
+testOutliers(check.ingmod, type = "bootstrap")
 
 
 #### Occurrence mod - inference ####
@@ -1584,7 +1585,7 @@ sizerun1 <- jags.parallel(
   inits = sizemod_init,
   parameters.to.save = sizemod_params,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 50000,
   n.burnin = 5000,
   n.thin = 10,
@@ -1605,7 +1606,7 @@ sizerun2 <- jags.parallel(
   inits = sizemod_init,
   parameters.to.save = sizemod_params2,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 50000,
   n.burnin = 5000,
   n.thin = 10,
@@ -2103,7 +2104,7 @@ sizeingrun1 <- jags.parallel(
   inits = sizeinginit,
   parameters.to.save = sizeingparam,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 100000,
   n.burnin = 2000,
   n.thin = 50,
@@ -2125,7 +2126,7 @@ sizeingrun2 <- jags.parallel(
   inits = sizeinginit,
   parameters.to.save = sizeingparam2,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 100000,
   n.burnin = 2000,
   n.thin = 50,
@@ -2145,7 +2146,9 @@ check.sizeingmod <- createDHARMa(simulatedResponse = sizeing.response,
                              integerResponse = T,
                              seed = 5151)
 
-plot(check.sizeingmod)  
+plot(check.sizeingmod)
+
+testDispersion(check.sizeing)
 
 #### Occurrence x size mod - inference ####
 
@@ -2643,7 +2646,7 @@ famrun1 <- jags.parallel(
   inits = faminit,
   parameters.to.save = famparam,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 70000,
   n.burnin = 5000,
   n.thin = 40,
@@ -2664,7 +2667,7 @@ famrun2 <- jags.parallel(
   inits = faminit,
   parameters.to.save = famparam2,
   n.chains = 3,
-  n.cluster = 8,
+  n.cluster = 16,
   n.iter = 70000,
   n.burnin = 5000,
   n.thin = 40,
@@ -2952,9 +2955,10 @@ ggplot(gutdata) +
     trans = 'log1p'
   ) +
   coord_flip() +
-  scale_colour_gradient2(low = pal[3], mid = pal[2], high = pal[1],
+  scale_colour_gradient2(low = pal[3], mid = pal[4], high = pal[5],
                          midpoint = 500, 
-                         breaks = c(0.2, 250, 500, 750, 1000)) +
+                         breaks = c(0.2, 250, 500, 750, 1000),
+                         labels = c(0.2, 250, 500, 750, 1000)) +
   scale_size(breaks = c(1, seq(from = 200, to = 1400, by = 200))) +
   theme1 +
   theme(legend.margin = margin(0, 0, 0, 0, unit = 'cm'),
