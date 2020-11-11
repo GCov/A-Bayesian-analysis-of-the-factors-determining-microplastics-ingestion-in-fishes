@@ -12,6 +12,8 @@ library(beepr)
 library(ggridges)
 library(reshape2)
 library(DHARMa)
+library(bayestestR)
+library(glmmTMB)
 load.module("glm")
 
 extract.post <- function(x){
@@ -28,6 +30,10 @@ extract.post <- function(x){
   long$variable <- as.character(long$variable)
   long$variable <- as.factor(long$variable)
   long
+}
+
+se <- function(x) {
+  sd(x)/sqrt(N)
 }
 
 #### Set up some aesthetics ####
@@ -217,8 +223,6 @@ gutdata$region <- as.factor(gutdata$region)
 ## Convert to total MP counts for a species for a study
 
 gutdata$totalcount <- round(with(gutdata, Mpsgut * N), 0)
-
-gutdata$zeros <- ifelse(gutdata$totalcount == 0, 0, 1)
 
 #### TL gut mod - fit model ####
 
@@ -638,16 +642,16 @@ summary(gutdata.sim1)
 
 gutdata.sim1$region <- mapvalues(gutdata.sim1$region,
                                  from = levels(gutdata.sim1$region),
-                                 to = c("Africa - Inland Waters",
-                                        "America: North - Inland Waters",
-                                        "America: South - Inland Waters",
-                                        "Asia - Inland Waters",
+                                 to = c("Africa",
+                                        "America: North",
+                                        "America: South",
+                                        "Asia",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
                                         "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
-                                        "Europe - Inland Waters",
+                                        "Europe",
                                         "Indian Ocean: Antarctic",
                                         "Indian Ocean: Eastern",
                                         "Indian Ocean: Western",
@@ -663,11 +667,11 @@ gutdata.sim1$area <-
   with(gutdata.sim1,
        as.factor(
          ifelse(
-           region != "Africa - Inland Waters" &
-             region != "America: North - Inland Waters" &
-             region != "America: South - Inland Waters" &
-             region != "Asia - Inland Waters" &
-             region != "Europe - Inland Waters",
+           region != "Africa" &
+             region != "America: North" &
+             region != "America: South" &
+             region != "Asia" &
+             region != "Europe",
            "Marine",
            "Freshwater"
          )
@@ -677,11 +681,11 @@ gutdata$area <-
   as.factor(with(
     gutdata,
     ifelse(
-      region != "Africa - Inland Waters" &
-        region != "America: North - Inland Waters" &
-        region != "America: South - Inland Waters" &
-        region != "Asia - Inland Waters" &
-        region != "Europe - Inland Waters",
+      region != "Africa" &
+        region != "America: North" &
+        region != "America: South" &
+        region != "Asia" &
+        region != "Europe",
       "Marine",
       "Freshwater"
     )
@@ -695,7 +699,7 @@ gutdata.a <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Freshwater"),
@@ -703,7 +707,7 @@ gutdata.a <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Freshwater"),
@@ -711,7 +715,7 @@ gutdata.a <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Freshwater"),
@@ -719,19 +723,19 @@ gutdata.a <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_line(data = subset(gutdata.sim1, area == "Freshwater"),
             aes(x = TL,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(gutdata, area == "Freshwater"),
     aes(x = TL,
         y = Mpsgut),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap( ~ region, ncol = 5,
               labeller = label_wrap_gen(width = 15)) +
@@ -743,7 +747,8 @@ gutdata.a <-
                      expand = c(0, 0.05)) +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0.5,0, unit = 'cm'))
 
 gutdata.b <-
   ggplot() +
@@ -753,7 +758,7 @@ gutdata.b <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Marine"),
@@ -761,7 +766,7 @@ gutdata.b <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Marine"),
@@ -769,7 +774,7 @@ gutdata.b <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(gutdata.sim1, area == "Marine"),
@@ -777,19 +782,19 @@ gutdata.b <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_line(data = subset(gutdata.sim1, area == "Marine"),
             aes(x = TL,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(gutdata, area == "Marine"),
     aes(x = TL,
         y = Mpsgut),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap( ~ region, ncol = 5,
               labeller = label_wrap_gen(width = 15)) +
@@ -803,7 +808,8 @@ gutdata.b <-
                      expand = c(0, 0.05)) +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
 
 png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 13, 
     units = 'cm', res = 500)
@@ -811,7 +817,9 @@ png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 13,
 plot_grid(
   gutdata.a,
   gutdata.b,
-  labels = c('A', 'B'),
+  labels = c('Freshwater', 'Marine'),
+  label_x = c(0.41, 0.44),
+  label_size = 10,
   rel_heights = c(1, 2.5),
   nrow = 2,
   align = 'v'
@@ -885,7 +893,7 @@ ggplot() +
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[5]
   ) +
   geom_ribbon(
     data = gutdata.sim2,
@@ -893,7 +901,7 @@ ggplot() +
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[5]
   ) +
   geom_ribbon(
     data = gutdata.sim2,
@@ -901,7 +909,7 @@ ggplot() +
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[5]
   ) +
   geom_ribbon(
     data = gutdata.sim2,
@@ -909,19 +917,20 @@ ggplot() +
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[5]
   ) +
   geom_line(data = gutdata.sim2,
             aes(x = min.size,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = gutdata,
     aes(x = min.size,
         y = Mpsgut),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    alpha = 0.8,
+    colour = pal[1]
   ) +
   facet_grid(. ~ exclude.fib, labeller = label_wrap_gen(width = 15)) +
   coord_cartesian(ylim = c(0, 50), xlim = c(0, 510)) +
@@ -1311,15 +1320,15 @@ summary(ingestion.sim1)
 
 ingestion.sim1$region <- mapvalues(ingestion.sim1$region,
                                  from = levels(ingestion.sim1$region),
-                                 to = c("Africa - Inland Waters",
-                                        "America: North - Inland Waters",
-                                        "Asia - Inland Waters",
+                                 to = c("Africa",
+                                        "America: North",
+                                        "Asia",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
                                         "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
-                                        "Europe - Inland Waters",
+                                        "Europe",
                                         "Indian Ocean: Antarctic",
                                         "Indian Ocean: Eastern",
                                         "Indian Ocean: Western",
@@ -1335,10 +1344,10 @@ ingestion.sim1$area <-
   with(ingestion.sim1,
        as.factor(
          ifelse(
-           region != "Africa - Inland Waters" &
-             region != "America: North - Inland Waters" &
-             region != "Asia - Inland Waters" &
-             region != "Europe - Inland Waters",
+           region != "Africa" &
+             region != "America: North" &
+             region != "Asia" &
+             region != "Europe",
            "Marine",
            "Freshwater"
          )
@@ -1348,10 +1357,10 @@ ingestion$area <-
   as.factor(with(
     ingestion,
     ifelse(
-      region != "Africa - Inland Waters" &
-        region != "America: North - Inland Waters" &
-        region != "Asia - Inland Waters" &
-        region != "Europe - Inland Waters",
+      region != "Africa" &
+        region != "America: North" &
+        region != "Asia" &
+        region != "Europe",
       "Marine",
       "Freshwater"
     )
@@ -1365,7 +1374,7 @@ ing.plot.a <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Freshwater"),
@@ -1373,7 +1382,7 @@ ing.plot.a <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Freshwater"),
@@ -1381,7 +1390,7 @@ ing.plot.a <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Freshwater"),
@@ -1389,19 +1398,19 @@ ing.plot.a <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_line(data = subset(ingestion.sim1, area == "Freshwater"),
             aes(x = TL,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(ingestion, area == "Freshwater"),
     aes(x = TL,
         y = IR),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
@@ -1413,7 +1422,8 @@ ing.plot.a <-
                      limits = c(0, 1)) +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0.5,0, unit = 'cm'))
 
 ing.plot.b <- 
   ggplot() +
@@ -1423,7 +1433,7 @@ ing.plot.b <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Marine"),
@@ -1431,7 +1441,7 @@ ing.plot.b <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Marine"),
@@ -1439,7 +1449,7 @@ ing.plot.b <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(ingestion.sim1, area == "Marine"),
@@ -1447,19 +1457,19 @@ ing.plot.b <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_line(data = subset(ingestion.sim1, area == "Marine"),
             aes(x = TL,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(ingestion, area == "Marine"),
     aes(x = TL,
         y = IR),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
@@ -1471,16 +1481,19 @@ ing.plot.b <-
                      limits = c(0, 1)) +
   scale_x_continuous(expand = c(0, 0),
                      limits = c(1.9, 5.1)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
 
-png('Ingestion Rate Predictions Plot.png', width = 14, height = 12, 
+png('Ingestion Rate Predictions Plot.png', width = 14, height = 13, 
     units = 'cm', res = 500)
 
 plot_grid(
   ing.plot.a,
   ing.plot.b,
-  labels = c('A', 'B'),
-  rel_heights = c(1, 2.6),
+  labels = c('Freshwater', 'Marine'),
+  label_x = c(0.41, 0.44),
+  label_size = 10,
+  rel_heights = c(1, 2.5),
   nrow = 2
 )
 
@@ -1813,16 +1826,16 @@ summary(size.sim1)
 
 size.sim1$region <- mapvalues(size.sim1$region,
                                  from = levels(size.sim1$region),
-                                 to = c("Africa - Inland Waters",
-                                        "America: North - Inland Waters",
-                                        "America: South - Inland Waters",
-                                        "Asia - Inland Waters",
+                                 to = c("Africa",
+                                        "America: North",
+                                        "America: South",
+                                        "Asia",
                                         "Atlantic: Eastern Central",
                                         "Atlantic: Northeast",
                                         "Atlantic: Northwest",
                                         "Atlantic: Southwest",
                                         "Atlantic: Western Central",
-                                        "Europe - Inland Waters",
+                                        "Europe",
                                         "Indian Ocean: Antarctic",
                                         "Indian Ocean: Eastern",
                                         "Indian Ocean: Western",
@@ -1837,11 +1850,11 @@ size.sim1$area <-
   with(size.sim1,
        as.factor(
          ifelse(
-           region != "Africa - Inland Waters" &
-             region != "America: North - Inland Waters" &
-             region != "America: South - Inland Waters" &
-             region != "Asia - Inland Waters" &
-             region != "Europe - Inland Waters",
+           region != "Africa" &
+             region != "America: North" &
+             region != "America: South" &
+             region != "Asia" &
+             region != "Europe",
            "Marine",
            "Freshwater"
          )
@@ -1851,11 +1864,11 @@ size$area <-
   as.factor(with(
     size,
     ifelse(
-      region != "Africa - Inland Waters" &
-        region != "America: North - Inland Waters" &
-        region != "America: South - Inland Waters" &
-        region != "Asia - Inland Waters" &
-        region != "Europe - Inland Waters",
+      region != "Africa" &
+        region != "America: North" &
+        region != "America: South" &
+        region != "Asia" &
+        region != "Europe",
       "Marine",
       "Freshwater"
     )
@@ -1869,7 +1882,7 @@ size.a <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Freshwater"),
@@ -1877,7 +1890,7 @@ size.a <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Freshwater"),
@@ -1885,7 +1898,7 @@ size.a <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Freshwater"),
@@ -1893,19 +1906,19 @@ size.a <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_line(data = subset(size.sim1, area == "Freshwater"),
             aes(x = length,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(size, area == "Freshwater"),
     aes(x = total.length,
         y = Mpsgut),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap( ~ region, ncol = 5,
               labeller = label_wrap_gen(width = 15)) +
@@ -1917,7 +1930,8 @@ size.a <-
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
                      breaks = c(1, 50, 100, 150, 200)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0.5,0, unit = 'cm'))
 
 size.b <-
   ggplot() +
@@ -1927,7 +1941,7 @@ size.b <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Marine"),
@@ -1935,7 +1949,7 @@ size.b <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Marine"),
@@ -1943,7 +1957,7 @@ size.b <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(size.sim1, area == "Marine"),
@@ -1951,19 +1965,19 @@ size.b <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_line(data = subset(size.sim1, area == "Marine"),
             aes(x = length,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(size, area == "Marine"),
     aes(x = total.length,
         y = Mpsgut),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap( ~ region, ncol = 5,
               labeller = label_wrap_gen(width = 15)) +
@@ -1977,15 +1991,18 @@ size.b <-
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
                      breaks = c(1, 50, 100, 150, 200)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
 
-png('MPs by Total Length Predictions Plot.png', width = 14, height = 12, 
+png('MPs by Total Length Predictions Plot.png', width = 14, height = 13, 
     units = 'cm', res = 500)
 
 plot_grid(
   size.a,
   size.b,
-  labels = c('A', 'B'),
+  labels = c('Freshwater', 'Marine'),
+  label_x = c(0.41, 0.44),
+  label_size = 10,
   rel_heights = c(1, 2.5),
   nrow = 2,
   align = 'v'
@@ -2363,15 +2380,15 @@ sizeing.sim1$region <- mapvalues(
   sizeing.sim1$region,
   from = levels(sizeing.sim1$region),
   to = c(
-    "Africa - Inland Waters",
-    "America: North - Inland Waters",
-    "Asia - Inland Waters",
+    "Africa",
+    "America: North",
+    "Asia",
     "Atlantic: Eastern Central",
     "Atlantic: Northeast",
     "Atlantic: Northwest",
     "Atlantic: Southwest",
     "Atlantic: Western Central",
-    "Europe - Inland Waters",
+    "Europe",
     "Indian Ocean: Antarctic",
     "Indian Ocean: Eastern",
     "Indian Ocean: Western",
@@ -2387,10 +2404,10 @@ sizeing.sim1$area <-
   with(sizeing.sim1,
        as.factor(
          ifelse(
-           region != "Africa - Inland Waters" &
-             region != "America: North - Inland Waters" &
-             region != "Asia - Inland Waters" &
-             region != "Europe - Inland Waters",
+           region != "Africa" &
+             region != "America: North" &
+             region != "Asia" &
+             region != "Europe",
            "Marine",
            "Freshwater"
          )
@@ -2400,10 +2417,10 @@ sizeing$area <-
   as.factor(with(
     sizeing,
     ifelse(
-      region != "Africa - Inland Waters" &
-        region != "America: North - Inland Waters" &
-        region != "Asia - Inland Waters" &
-        region != "Europe - Inland Waters",
+      region != "Africa" &
+        region != "America: North" &
+        region != "Asia" &
+        region != "Europe",
       "Marine",
       "Freshwater"
     )
@@ -2425,7 +2442,7 @@ sizeing.plot.a <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(sizeing.sim1, area == "Freshwater"),
@@ -2433,7 +2450,7 @@ sizeing.plot.a <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_ribbon(
     data = subset(sizeing.sim1, area == "Freshwater"),
@@ -2441,19 +2458,19 @@ sizeing.plot.a <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[4]
   ) +
   geom_line(data = subset(sizeing.sim1, area == "Freshwater"),
             aes(x = length,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(sizeing, area == "Freshwater"),
     aes(x = total.length,
         y = IR),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
@@ -2466,7 +2483,9 @@ sizeing.plot.a <-
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
                      breaks = c(1, 100, 200)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0.5,0.5,0, unit = 'cm'),
+        panel.spacing = unit(0.4, "cm"))
 
 sizeing.plot.b <- 
   ggplot() +
@@ -2476,7 +2495,7 @@ sizeing.plot.b <-
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(sizeing.sim1, area == "Marine"),
@@ -2484,7 +2503,7 @@ sizeing.plot.b <-
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(sizeing.sim1, area == "Marine"),
@@ -2492,7 +2511,7 @@ sizeing.plot.b <-
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_ribbon(
     data = subset(sizeing.sim1, area == "Marine"),
@@ -2500,23 +2519,23 @@ sizeing.plot.b <-
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    fill = pal[1]
+    fill = pal[3]
   ) +
   geom_line(data = subset(sizeing.sim1, area == "Marine"),
             aes(x = length,
                 y = median),
-            colour = pal[5]) +
+            colour = pal[1]) +
   geom_point(
     data = subset(sizeing, area == "Marine"),
     aes(x = total.length,
         y = IR),
     shape = 1,
     size = 0.5,
-    colour = pal[5]
+    colour = pal[1]
   ) +
   facet_wrap(~ region,
              labeller = label_wrap_gen(width = 15),
-             ncol = 4) +
+             ncol = 5) +
   labs(x = 'Total Length (cm)',
        y = "Occurrence Rate") +
   scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.25),
@@ -2525,18 +2544,21 @@ sizeing.plot.b <-
   scale_x_continuous(expand = c(0, 0.1),
                      limits = c(1, 200),
                      breaks = c(1, 100, 200)) +
-  theme1
+  theme1 +
+  theme(plot.margin = margin(0.5,0.5,0,0, unit = 'cm'),
+        panel.spacing = unit(0.4, "cm"))
 
-png('Ingestion Rate by Size Predictions Plot.png', width = 9, height = 13, 
+png('Ingestion Rate by Size Predictions Plot.png', width = 14, height = 13, 
     units = 'cm', res = 500)
 
 plot_grid(
   sizeing.plot.a,
   sizeing.plot.b,
-  labels = c('A', 'B'),
-  rel_heights = c(1, 3.2),
-  nrow = 2,
-  align = 'v'
+  labels = c('Freshwater', 'Marine'),
+  label_x = c(0.41, 0.44),
+  label_size = 10,
+  rel_heights = c(1, 2.6),
+  nrow = 2
 )
 
 dev.off()
@@ -2866,7 +2888,7 @@ ggplot() +
         ymin = lower25,
         ymax = upper25),
     alpha = 0.75,
-    colour = pal[1],
+    colour = pal[5],
     size = 1
   ) +
   geom_linerange(
@@ -2875,7 +2897,7 @@ ggplot() +
         ymin = lower50,
         ymax = upper50),
     alpha = 0.5,
-    colour = pal[1],
+    colour = pal[5],
     size = 1
   ) +
   geom_linerange(
@@ -2884,7 +2906,7 @@ ggplot() +
         ymin = lower75,
         ymax = upper75),
     alpha = 0.25,
-    colour = pal[1],
+    colour = pal[5],
     size = 1
   ) +
   geom_linerange(
@@ -2893,13 +2915,13 @@ ggplot() +
         ymin = lower95,
         ymax = upper95),
     alpha = 0.05,
-    colour = pal[1],
+    colour = pal[5],
     size = 1
   ) +
   geom_point(data = fam.sim1,
             aes(x = reorder(family, median, mean),
                 y = median),
-            colour = pal[5],
+            colour = pal[1],
             fill = pal[3],
             size = 3,
             shape = 21) +
@@ -2908,8 +2930,11 @@ ggplot() +
     aes(x = reorder(family, Mpsgut, mean),
         y = Mpsgut),
     size = 0.75,
-    colour = pal[5],
-    shape = 1
+    colour = pal[1],
+    alpha = 0.6,
+    shape = 1,
+    width = 0.3,
+    height = 0
   ) +
   labs(x = 'Family',
        y = expression(paste(
@@ -2979,19 +3004,74 @@ png('MP Occurrence Rate by Region.png', width = 19, height = 12,
 ggplot(ingestion) + 
   geom_density_ridges(aes(x = IR,
                           y = reorder(region, IR, mean)),
-                      fill = pal[2],
-                      colour = pal[5],
+                      fill = pal[3],
+                      colour = pal[1],
                       alpha = 0.75,
-                      scale = 1) +
+                      scale = 1,
+                      size = 0.5) +
   geom_point(aes(x = IR,
                  y = region),
-             size = 1.5, alpha = 0.3, colour = pal[3]) +
+             size = 2, alpha = 0.3, fill = pal[5], shape = 21) +
   facet_grid(area ~ ., scales = "free_y", space = "free_y") +
   scale_x_continuous(limits = c(0, 1), expand = c(0, 0.01)) +
   labs(x = "Occurrence Rate",
        y = "FAO Area") +
   theme1 +
-  theme(panel.grid.major.y = element_line(colour = pal[5], size = 0.25))
+  theme(panel.grid.major.y = element_line(colour = pal[2], size = 0.25))
+
+dev.off()
+
+#### Relationship between body size and FB trophic level ####
+sizeing$total.length2 <- sizeing$total.length^2
+
+
+fishmod <-
+  glmmTMB(
+    TL ~ scale(total.length, center = TRUE) +
+      scale(total.length2, center = TRUE) +
+      (1 | study),
+    data = sizeing
+  )
+
+summary(fishmod)
+
+plot(resid(fishmod, type = "pearson") ~ fitted(fishmod))
+abline(0, 0)
+
+qqnorm(resid(fishmod, type = "pearson"))
+qqline(resid(fishmod, type = "pearson"))
+
+fishres <- simulateResiduals(fishmod)
+plot(fishres)
+
+fishpredict <- predict(fishmod, se.fit = TRUE, re.form = NA)
+
+sizeing$predict <- fishpredict$fit
+sizeing$upper95 <- fishpredict$fit + 1.96*fishpredict$se.fit
+sizeing$lower95 <- fishpredict$fit - 1.96*fishpredict$se.fit
+
+png('Trophic Level by Size.png', width = 9, height = 9, 
+    units = 'cm', res = 700)
+
+ggplot(sizeing) + 
+  geom_point(aes(x = total.length,
+                 y = TL),
+             size = 1,
+             shape = 1,
+             colour = pal[1],
+             alpha = 0.5) +
+  geom_smooth(aes(x = total.length,
+                  y = TL),
+              size = 0.5, 
+              colour = pal[1],
+              fill = pal[5]) +
+  labs(x = "Total Length (cm)",
+       y = "Trophic Level") +
+  scale_x_continuous(expand = c(0, 0),
+                     trans = 'log',
+                     breaks = c(1, 10, 100, 500),
+                     limits = c(1, 510)) +
+  theme1
 
 dev.off()
 
