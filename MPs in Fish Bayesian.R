@@ -432,15 +432,15 @@ png(
   width = 14,
   height = 16,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot(run1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
-    fill = pal[1],
-    colour = pal[5],
+    fill = pal[5],
+    colour = pal[1],
     alpha = 0.75
   ) +
   geom_vline(
@@ -511,7 +511,7 @@ marineplot1 <-
 
 
 png('Gut Content Bayesian Plot.png', width = 14, height = 16, units = 'cm', 
-    res = 500)
+    res = 1080)
 
 plot_grid(freshplot1, marineplot1, labels = c('A', 'B'), rel_heights = c(1,2.9),
           nrow = 2, align = 'v')
@@ -567,7 +567,7 @@ png(
   width = 14,
   height = 16,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 plot_grid(freshplot2, marineplot2, labels = c('A', 'B'), rel_heights = c(1,2.5),
@@ -812,7 +812,7 @@ gutdata.b <-
   theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
 
 png('MPs by Trophic Level Predictions Plot.png', width = 14, height = 13, 
-    units = 'cm', res = 500)
+    units = 'cm', res = 1080)
 
 plot_grid(
   gutdata.a,
@@ -884,7 +884,7 @@ gutdata.sim2$exclude.fib <- mapvalues(gutdata.sim2$fibres,
                                              "Fibres not excluded"))
 
 png('MPs Methodology Predictions Plot.png', width = 9, height = 5, 
-    units = 'cm', res = 500)
+    units = 'cm', res = 1080)
 
 ggplot() +
   geom_ribbon(
@@ -1171,15 +1171,15 @@ png(
   width = 14,
   height = 13,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot(ingrun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
-    fill = pal[1],
-    colour = pal[5],
+    fill = pal[5],
+    colour = pal[1],
     alpha = 0.75
   ) +
   geom_vline(
@@ -1246,7 +1246,7 @@ png(
   width = 14,
   height = 18,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 plot_grid(
@@ -1485,7 +1485,7 @@ ing.plot.b <-
   theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
 
 png('Ingestion Rate Predictions Plot.png', width = 14, height = 13, 
-    units = 'cm', res = 500)
+    units = 'cm', res = 1080)
 
 plot_grid(
   ing.plot.a,
@@ -1708,8 +1708,8 @@ ggplot(sizerun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
-    fill = pal[1],
-    colour = pal[5],
+    fill = pal[5],
+    colour = pal[1],
     alpha = 0.75
   ) +
   geom_vline(
@@ -1738,7 +1738,7 @@ png(
   width = 9,
   height = 11,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot(size) +
@@ -1931,7 +1931,8 @@ size.a <-
                      limits = c(1, 200),
                      breaks = c(1, 50, 100, 150, 200)) +
   theme1 +
-  theme(plot.margin = margin(0.5,0,0.5,0, unit = 'cm'))
+  theme(plot.margin = margin(0.5,0.5,0.5,0, unit = 'cm'),
+        panel.spacing = unit(0.3, "cm"))
 
 size.b <-
   ggplot() +
@@ -1992,10 +1993,11 @@ size.b <-
                      limits = c(1, 200),
                      breaks = c(1, 50, 100, 150, 200)) +
   theme1 +
-  theme(plot.margin = margin(0.5,0,0,0, unit = 'cm'))
+  theme(plot.margin = margin(0.5,0.5,0,0, unit = 'cm'),
+        panel.spacing = unit(0.3, "cm"))
 
-png('MPs by Total Length Predictions Plot.png', width = 14, height = 13, 
-    units = 'cm', res = 500)
+png('MPs by Total Length Predictions Plot.png', width = 14, height = 15, 
+    units = 'cm', res = 1080)
 
 plot_grid(
   size.a,
@@ -2225,15 +2227,15 @@ png(
   width = 14,
   height = 13,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot(sizeingrun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
-    fill = pal[1],
-    colour = pal[5],
+    fill = pal[5],
+    colour = pal[1],
     alpha = 0.75
   ) +
   geom_vline(
@@ -2304,7 +2306,7 @@ png(
   width = 14,
   height = 15,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 plot_grid(
@@ -2549,7 +2551,7 @@ sizeing.plot.b <-
         panel.spacing = unit(0.4, "cm"))
 
 png('Ingestion Rate by Size Predictions Plot.png', width = 14, height = 13, 
-    units = 'cm', res = 500)
+    units = 'cm', res = 1080)
 
 plot_grid(
   sizeing.plot.a,
@@ -2756,15 +2758,15 @@ png(
   width = 14,
   height = 8,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot(famrun1long) +
   geom_density_ridges(
     aes(x = value,
         y = reorder(variable, order, mean)),
-    fill = pal[1],
-    colour = pal[5],
+    fill = pal[5],
+    colour = pal[1],
     alpha = 0.75
   ) +
   geom_vline(
@@ -2787,7 +2789,7 @@ fam$upper95 <-
   apply(fammod.response, 1, quantile, prob = 0.975)
 
 png('Gut Content Family Bayesian Plot.png', width = 9, height = 10, units = 'cm', 
-    res = 500)
+    res = 1080)
 
 ggplot(fam) +
   geom_ribbon(aes(x = total.length, ymin = lower95/N, ymax = upper95/N), 
@@ -2878,7 +2880,7 @@ png(
   width = 9,
   height = 9,
   units = 'cm',
-  res = 500
+  res = 1080
 )
 
 ggplot() +
@@ -2954,7 +2956,7 @@ dev.off()
 ## Plot according to lower limit of detection
 
 png('Lower Limit Plot.png', width = 19, height = 11, 
-    units = 'cm', res = 600)
+    units = 'cm', res = 1080)
 
 ggplot(gutdata) +
   geom_point(aes(
@@ -2999,7 +3001,7 @@ dev.off()
 ## Plot MP concentrations by region
 
 png('MP Occurrence Rate by Region.png', width = 19, height = 12, 
-    units = 'cm', res = 700)
+    units = 'cm', res = 1080)
 
 ggplot(ingestion) + 
   geom_density_ridges(aes(x = IR,
@@ -3051,7 +3053,7 @@ sizeing$upper95 <- fishpredict$fit + 1.96*fishpredict$se.fit
 sizeing$lower95 <- fishpredict$fit - 1.96*fishpredict$se.fit
 
 png('Trophic Level by Size.png', width = 9, height = 9, 
-    units = 'cm', res = 700)
+    units = 'cm', res = 1080)
 
 ggplot(sizeing) + 
   geom_point(aes(x = total.length,
@@ -3072,6 +3074,26 @@ ggplot(sizeing) +
                      breaks = c(1, 10, 100, 500),
                      limits = c(1, 510)) +
   theme1
+
+dev.off()
+
+
+png('Clupeid Plot.png', width = 9, height = 7.7, 
+    units = 'cm', res = 1080)
+
+ggplot(subset(fam, family == "Clupeidae")) +
+  geom_point(aes(x = region, y = Mpsgut, colour = feeding.habit),
+             size = 1.5, shape = 1) +
+  scale_y_continuous(expand = c(0, 0.6)) +
+  labs(x = "", 
+       y = expression(paste('Microplastic Concentration (particles ' ~ 
+                              ind ^ -1 * ')')),
+       colour = "Feeding Strategy") +
+  scale_colour_manual(values = pal[c(5, 4, 3, 1)]) +
+  theme1 +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1),
+        legend.margin = margin(0,0,0,0),
+        legend.box.spacing = unit(0.1, "cm"))
 
 dev.off()
 
