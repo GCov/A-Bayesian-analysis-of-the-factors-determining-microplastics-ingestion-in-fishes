@@ -3097,3 +3097,41 @@ ggplot(subset(fam, family == "Clupeidae")) +
 
 dev.off()
 
+
+fam2 <-
+  data.frame(fam %>%
+               group_by(family) %>%
+               summarize(
+                 mean = mean(Mpsgut),
+                 se = sd(Mpsgut / sqrt(N)),
+                 meanTL = mean(TL)
+               ))
+
+
+svg('Family Trophic Level Plot.svg', width = 9, height = 7.7)
+
+ggplot(fam2) +
+  geom_linerange(
+    aes(x = reorder(family, meanTL),
+        ymin = mean - se,
+        ymax = mean + se),
+    size = 0.5,
+    colour = pal[1],
+  ) +
+  geom_point(
+    aes(x = reorder(family, meanTL),
+        y = mean),
+    size = 2,
+    colour = pal[1],
+    shape = 20
+  ) +
+  coord_cartesian(ylim = c(0, 8)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = 'Family',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       ))) +
+  theme1 +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1))
+
+dev.off()
