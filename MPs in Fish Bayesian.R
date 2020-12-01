@@ -6,6 +6,7 @@ library(arm)
 library(ggplot2)
 library(cowplot)
 library(plyr)
+library(dplyr)
 library(lattice)
 library(colorspace)
 library(beepr)
@@ -223,6 +224,24 @@ gutdata$region <- as.factor(gutdata$region)
 ## Convert to total MP counts for a species for a study
 
 gutdata$totalcount <- round(with(gutdata, Mpsgut * N), 0)
+
+#### Export data where no digestion was done ####
+
+undigested <- 
+  gutdata %>% 
+  filter(min.size == 500) %>% 
+  group_by(study, exclude.fib) %>% 
+  summarize(meanMPs = sum(Mpsgut*N)/sum(N))
+
+write.csv(undigested, "undigested.csv")
+
+#### Load the csv back in and analyze####
+
+undigested <- 
+  read.csv("undigested.csv", header = TRUE)
+
+hist(undigested$smallest.size)
+plot(density(undigested$smallest.size))
 
 #### TL gut mod - fit model ####
 
@@ -3078,13 +3097,13 @@ ggplot(sizeing) +
 dev.off()
 
 
-png('Clupeid Plot.png', width = 9, height = 7.7, 
+png('Clupeid Plot.png', width = 9, height = 8, 
     units = 'cm', res = 1080)
 
 ggplot(subset(fam, family == "Clupeidae")) +
   geom_point(aes(x = region, y = Mpsgut, colour = feeding.habit),
              size = 1.5, shape = 1) +
-  scale_y_continuous(expand = c(0, 0.6)) +
+  scale_y_continuous(expand = c(0, 0.8)) +
   labs(x = "", 
        y = expression(paste('Microplastic Concentration (particles ' ~ 
                               ind ^ -1 * ')')),
@@ -3104,33 +3123,29 @@ fam2 <-
                summarize(
                  mean = mean(Mpsgut),
                  se = sd(Mpsgut / sqrt(N)),
-                 meanTL = mean(TL)
+                 meanTL = median(TL),
+                 mediantotallength = mean(total.length)
                ))
 
 
-svg('Family Trophic Level Plot.svg', width = 9, height = 7.7)
+png('Family Trophic Level Plot.png', width = 14, height = 12, unit = "cm", 
+    res = 300)
 
 ggplot(fam2) +
-  geom_linerange(
-    aes(x = reorder(family, meanTL),
-        ymin = mean - se,
-        ymax = mean + se),
-    size = 0.5,
-    colour = pal[1],
-  ) +
   geom_point(
-    aes(x = reorder(family, meanTL),
-        y = mean),
-    size = 2,
-    colour = pal[1],
+    aes(y = meanTL,
+        x = mean,
+        size = mediantotallength,
+        colour = family),
     shape = 20
   ) +
-  coord_cartesian(ylim = c(0, 8)) +
-  scale_y_continuous(expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0, 8)) +
+  scale_x_continuous(expand = c(0, 0)) +
   labs(x = 'Family',
        y = expression(paste(
          'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
-       ))) +
+       )),
+       size = "Median Total Length (cm)") +
   theme1 +
   theme(axis.text.x = element_text(angle = 50, hjust = 1))
 
