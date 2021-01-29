@@ -3150,3 +3150,25 @@ ggplot(fam2) +
   theme(axis.text.x = element_text(angle = 50, hjust = 1))
 
 dev.off()
+
+png('Family Trophic Level Hypothesis Plot.png', width = 14, height = 12, unit = "cm", 
+    res = 300)
+
+ggplot(fam2) +
+  geom_point(
+    aes(y = meanTL,
+        x = exp(meanTL),
+        size = mediantotallength,
+        colour = family),
+    shape = 20
+  ) +
+  scale_x_continuous(expand = c(0, 0)) +
+  labs(x = 'Family',
+       y = expression(paste(
+         'Microplastic Concentration (particles ' ~ ind ^ -1 * ')'
+       )),
+       size = "Median Total Length (cm)") +
+  theme1 +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1))
+
+dev.off()
